@@ -591,10 +591,6 @@ class TurboLearnGUI(ctk.CTk):
                 width=200,
                 command=self.update_driver_path
             )
-            if driver_options:
-                driver_dropdown.set(driver_options[0])
-                self.update_driver_path(driver_options[0])
-            driver_dropdown.pack(pady=5)
             
             driver_info = ctk.CTkLabel(
                 self.driver_path_frame,
@@ -616,6 +612,11 @@ class TurboLearnGUI(ctk.CTk):
             wraplength=200
         )
         self.driver_path_label.pack(pady=5)
+        
+        # Set the default driver selection after all UI elements are created
+        if self.available_drivers and driver_options:
+            driver_dropdown.set(driver_options[0])
+            self.update_driver_path(driver_options[0])
         
         # Initially hide the driver path frame
         self.driver_path_frame.pack_forget()
