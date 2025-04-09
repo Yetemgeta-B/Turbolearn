@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Selenium](https://img.shields.io/badge/Selenium-4.12.0-green.svg)](https://www.selenium.dev/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+[![Visitors](https://visitor-badge.laobi.icu/badge?page_id=turbolearn-automation)](https://github.com/your-username/TurboLearn)
 
 This tool automates the process of creating an account on TurboLearn.ai using Selenium for browser automation with an intuitive GUI interface.
 

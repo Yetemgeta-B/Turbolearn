@@ -359,6 +359,10 @@ class TurboLearnGUI(ctk.CTk):
         self.geometry("1200x800")
         self.minsize(900, 700)
         
+        # Authentication settings
+        self.is_authenticated = False
+        self.auth_password = "turbolearn123"  # Default password, change this
+        
         # Initialize account tracker
         self.account_info = AccountInfo()
         
@@ -458,15 +462,108 @@ class TurboLearnGUI(ctk.CTk):
         browser_label = ctk.CTkLabel(browser_frame, text="Browser:")
         browser_label.pack(anchor="w", padx=10, pady=(10, 0))
         
-        # Create radio buttons for each detected browser
-        for i, browser in enumerate(self.browsers.keys()):
-            browser_radio = ctk.CTkRadioButton(
-                browser_frame, 
-                text=browser.capitalize(), 
-                variable=self.selected_browser, 
+        # Available browsers
+        for browser in self.browsers:
+            browser_option = ctk.CTkRadioButton(
+                browser_frame,
+                text=browser.capitalize(),
+                variable=self.selected_browser,
                 value=browser
             )
-            browser_radio.pack(anchor="w", padx=20, pady=(5, 0))
+            browser_option.pack(anchor="w", padx=20, pady=2)
+            
+        # WebDriver Selection - New Section
+        driver_selection_frame = ctk.CTkFrame(right_scroll)
+        driver_selection_frame.pack(fill="x", padx=10, pady=10)
+        
+        driver_label = ctk.CTkLabel(
+            driver_selection_frame, 
+            text="WebDriver Selection", 
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        driver_label.pack(anchor="w", padx=10, pady=(10, 5))
+        
+        # WebDriver selection radio buttons
+        self.driver_selection = tk.StringVar(value="auto")
+        
+        auto_driver = ctk.CTkRadioButton(
+            driver_selection_frame,
+            text="Auto-download WebDriver",
+            variable=self.driver_selection,
+            value="auto",
+            command=self.toggle_driver_selection
+        )
+        auto_driver.pack(anchor="w", padx=20, pady=2)
+        
+        # Create container for driver options
+        self.driver_options_frame = ctk.CTkFrame(driver_selection_frame, fg_color="transparent")
+        self.driver_options_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Add local drivers option if we have them
+        if self.available_drivers:
+            local_driver = ctk.CTkRadioButton(
+                driver_selection_frame,
+                text="Use local WebDrivers",
+                variable=self.driver_selection,
+                value="local",
+                command=self.toggle_driver_selection
+            )
+            local_driver.pack(anchor="w", padx=20, pady=2)
+            
+            # Create a frame for driver selection dropdown
+            self.local_drivers_frame = ctk.CTkFrame(self.driver_options_frame)
+            
+            driver_dropdown_label = ctk.CTkLabel(
+                self.local_drivers_frame,
+                text="Select WebDriver:",
+                anchor="w"
+            )
+            driver_dropdown_label.pack(anchor="w", padx=10, pady=(5, 0))
+            
+            # Create a dropdown (combobox) for the drivers
+            driver_options = list(self.available_drivers.keys())
+            driver_dropdown = ctk.CTkComboBox(
+                self.local_drivers_frame,
+                values=driver_options,
+                variable=self.selected_driver,
+                width=200,
+                command=self.update_driver_path
+            )
+            if driver_options:
+                driver_dropdown.set(driver_options[0])
+            driver_dropdown.pack(padx=10, pady=5)
+        
+        # Custom driver option
+        custom_driver = ctk.CTkRadioButton(
+            driver_selection_frame,
+            text="Select custom WebDriver",
+            variable=self.driver_selection,
+            value="custom",
+            command=self.toggle_driver_selection
+        )
+        custom_driver.pack(anchor="w", padx=20, pady=2)
+        
+        # Create a frame for custom driver selection
+        self.custom_driver_frame = ctk.CTkFrame(self.driver_options_frame)
+        
+        select_driver_button = ctk.CTkButton(
+            self.custom_driver_frame,
+            text="Browse for WebDriver",
+            command=self.select_driver_file
+        )
+        select_driver_button.pack(pady=5)
+        
+        self.driver_path_label = ctk.CTkLabel(
+            self.custom_driver_frame,
+            text="No file selected",
+            wraplength=200
+        )
+        self.driver_path_label.pack(pady=5)
+        
+        # Initially hide driver frames
+        if hasattr(self, 'local_drivers_frame'):
+            self.local_drivers_frame.pack_forget()
+        self.custom_driver_frame.pack_forget()
         
         # Mode selection
         mode_frame = ctk.CTkFrame(right_scroll)
@@ -550,76 +647,6 @@ class TurboLearnGUI(ctk.CTk):
         
         # Initially hide batch settings
         self.batch_settings_frame.pack_forget()
-        
-        # Add option for existing WebDriver
-        driver_frame = ctk.CTkFrame(right_scroll)
-        driver_frame.pack(fill="x", padx=10, pady=10)
-        
-        driver_label = ctk.CTkLabel(
-            driver_frame, 
-            text="WebDriver Options", 
-            font=ctk.CTkFont(size=14, weight="bold")
-        )
-        driver_label.pack(anchor="w", padx=10, pady=(10, 5))
-        
-        existing_driver_switch = ctk.CTkSwitch(
-            driver_frame, 
-            text="Use Existing WebDriver", 
-            variable=self.use_existing_driver,
-            command=self.toggle_driver_path
-        )
-        existing_driver_switch.pack(anchor="w", padx=10, pady=5)
-        
-        self.driver_path_frame = ctk.CTkFrame(driver_frame)
-        self.driver_path_frame.pack(fill="x", padx=10, pady=5)
-        self.driver_path = tk.StringVar(value="")
-        
-        # Add dropdown for available drivers if any are detected
-        if self.available_drivers:
-            driver_label = ctk.CTkLabel(
-                self.driver_path_frame,
-                text="Select WebDriver:"
-            )
-            driver_label.pack(anchor="w", pady=(5, 2))
-            
-            # Create a dropdown (combobox) for the drivers
-            driver_options = list(self.available_drivers.keys())
-            driver_dropdown = ctk.CTkComboBox(
-                self.driver_path_frame,
-                values=driver_options,
-                variable=self.selected_driver,
-                width=200,
-                command=self.update_driver_path
-            )
-            
-            driver_info = ctk.CTkLabel(
-                self.driver_path_frame,
-                text="Available drivers found in ./drivers directory"
-            )
-            driver_info.pack(pady=2)
-        
-        # Keep the manual selection option
-        select_driver_button = ctk.CTkButton(
-            self.driver_path_frame,
-            text="Browse for WebDriver",
-            command=self.select_driver_file
-        )
-        select_driver_button.pack(pady=5)
-        
-        self.driver_path_label = ctk.CTkLabel(
-            self.driver_path_frame,
-            text="No file selected",
-            wraplength=200
-        )
-        self.driver_path_label.pack(pady=5)
-        
-        # Set the default driver selection after all UI elements are created
-        if self.available_drivers and driver_options:
-            driver_dropdown.set(driver_options[0])
-            self.update_driver_path(driver_options[0])
-        
-        # Initially hide the driver path frame
-        self.driver_path_frame.pack_forget()
         
         # Add Proxy Support (new)
         proxy_frame = ctk.CTkFrame(right_scroll)
@@ -713,11 +740,16 @@ class TurboLearnGUI(ctk.CTk):
         else:
             self.proxy_settings_frame.pack_forget()
         
-    def toggle_driver_path(self):
-        if self.use_existing_driver.get():
-            self.driver_path_frame.pack(fill="x", padx=10, pady=5)
+    def toggle_driver_selection(self):
+        if self.driver_selection.get() == "local":
+            self.local_drivers_frame.pack(fill="x", padx=10, pady=5)
+            self.custom_driver_frame.pack_forget()
+        elif self.driver_selection.get() == "custom":
+            self.custom_driver_frame.pack(fill="x", padx=10, pady=5)
+            self.local_drivers_frame.pack_forget()
         else:
-            self.driver_path_frame.pack_forget()
+            self.local_drivers_frame.pack_forget()
+            self.custom_driver_frame.pack_forget()
             
     def select_driver_file(self):
         try:
@@ -755,6 +787,97 @@ class TurboLearnGUI(ctk.CTk):
         )
         dashboard_title.pack(pady=10)
         
+        # Check authentication before showing personal data
+        if not self.is_authenticated:
+            # Show authentication prompt
+            self.create_auth_panel()
+        else:
+            # Show dashboard content
+            self.create_dashboard_content()
+    
+    def create_auth_panel(self):
+        """Show authentication panel for accessing personal dashboard data"""
+        self.auth_frame = ctk.CTkFrame(self.dashboard_frame)
+        self.auth_frame.pack(fill="both", expand=True, padx=50, pady=50)
+        
+        auth_label = ctk.CTkLabel(
+            self.auth_frame,
+            text="Authentication Required",
+            font=ctk.CTkFont(size=18, weight="bold")
+        )
+        auth_label.pack(pady=(20, 10))
+        
+        info_label = ctk.CTkLabel(
+            self.auth_frame,
+            text="Account information is protected.\nPlease authenticate to view your data.",
+            font=ctk.CTkFont(size=14),
+            justify="center"
+        )
+        info_label.pack(pady=10)
+        
+        password_frame = ctk.CTkFrame(self.auth_frame)
+        password_frame.pack(pady=20, padx=20)
+        
+        password_label = ctk.CTkLabel(
+            password_frame,
+            text="Password:",
+            font=ctk.CTkFont(size=14)
+        )
+        password_label.pack(side="left", padx=(0, 10))
+        
+        self.password_var = tk.StringVar()
+        password_entry = ctk.CTkEntry(
+            password_frame,
+            textvariable=self.password_var,
+            show="*",
+            width=200
+        )
+        password_entry.pack(side="left")
+        
+        # Add login button
+        login_button = ctk.CTkButton(
+            self.auth_frame,
+            text="Login",
+            command=self.authenticate,
+            width=150,
+            fg_color="blue",
+            hover_color="darkblue"
+        )
+        login_button.pack(pady=20)
+        
+        # Add public mode info
+        public_info = ctk.CTkLabel(
+            self.auth_frame,
+            text="TurboLearn is open source but account data is private.\nOnly authenticated users can access their generated accounts.",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            justify="center"
+        )
+        public_info.pack(pady=30)
+    
+    def authenticate(self):
+        """Verify the entered password"""
+        if self.password_var.get() == self.auth_password:
+            # Password correct
+            self.is_authenticated = True
+            
+            # Clear authentication panel
+            self.auth_frame.destroy()
+            
+            # Show the dashboard content
+            self.create_dashboard_content()
+        else:
+            # Show error message
+            error_label = ctk.CTkLabel(
+                self.auth_frame,
+                text="Incorrect password. Please try again.",
+                text_color="red",
+                font=ctk.CTkFont(size=12)
+            )
+            error_label.pack(pady=5)
+    
+    def create_dashboard_content(self):
+        """Show the actual dashboard content after authentication"""
         # Add refresh button
         refresh_button = ctk.CTkButton(
             self.dashboard_frame,
@@ -792,8 +915,12 @@ class TurboLearnGUI(ctk.CTk):
         # Load accounts
         self.refresh_dashboard()
         self.account_detail = None  # Track the currently selected account
-        
+    
     def refresh_dashboard(self):
+        # If not authenticated, don't load private data
+        if not hasattr(self, 'account_scroll') or not self.is_authenticated:
+            return
+            
         # Clear existing widgets in scrollable frame
         for widget in self.account_scroll.winfo_children():
             widget.destroy()
@@ -1909,7 +2036,19 @@ class TurboLearnGUI(ctk.CTk):
         
         # Set custom driver path if specified
         custom_driver_path = None
-        if self.use_existing_driver.get() and self.driver_path.get():
+        if hasattr(self, 'driver_selection'):
+            driver_selection = self.driver_selection.get()
+            
+            if driver_selection == "local" and self.selected_driver.get() in self.available_drivers:
+                custom_driver_path = self.available_drivers[self.selected_driver.get()]
+                print(f"Using local WebDriver: {custom_driver_path}")
+            elif driver_selection == "custom" and self.driver_path.get():
+                custom_driver_path = self.driver_path.get()
+                print(f"Using custom WebDriver: {custom_driver_path}")
+            else:
+                print("Using automatic WebDriver download")
+        elif self.use_existing_driver.get() and self.driver_path.get():
+            # Backward compatibility
             custom_driver_path = self.driver_path.get()
             print(f"Using custom WebDriver from: {custom_driver_path}")
         
