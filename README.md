@@ -1,0 +1,122 @@
+# 🚀 TurboLearn Signup Automation
+
+[![Python 3.6+](https://img.shields.io/badge/Python-3.6+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Selenium](https://img.shields.io/badge/Selenium-4.12.0-green.svg)](https://www.selenium.dev/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
+This tool automates the process of creating an account on TurboLearn.ai using Selenium for browser automation with an intuitive GUI interface.
+
+![TurboLearn GUI](https://img.shields.io/badge/GUI-CustomTkinter-orange)
+
+## ✨ Features
+
+- 🖥️ **User-friendly GUI** with modern CustomTkinter interface
+- 🔍 **Auto-detects browsers** installed on your system
+- 🌐 Supports **multiple browsers**: Chrome, Firefox, Edge, Vivaldi, Brave, and Opera
+- 🕵️ **Private browsing mode** option for enhanced privacy
+- 🤖 **Headless mode** for faster, invisible automation
+- 📊 **Dashboard** to track and manage created accounts
+- 📈 **Analytics** with visualizations of account creation success rates
+- 📅 **Scheduler** for automated account creation at specified times
+- 🔄 **Batch processing** to create multiple accounts in sequence
+- 🌍 **Proxy support** for location-based testing
+- 💼 **WebDriver management** with included drivers for Chrome, Firefox, and Edge
+- 🛡️ **Error handling** with real-time console output
+- 🎨 **Themes and UI scaling** options
+
+## 🛠️ Requirements
+
+- Python 3.6+
+- At least one of the supported browsers installed:
+  - Google Chrome
+  - Mozilla Firefox
+  - Microsoft Edge
+  - Vivaldi
+  - Brave
+  - Opera
+- Internet connection
+
+## 📥 Installation
+
+1. Clone this repository or download the files
+2. Install the required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+3. Pre-downloaded WebDrivers are included in the `drivers` directory:
+   - Chrome WebDriver: `drivers/chrome/chromedriver-win64/chromedriver.exe`
+   - Firefox WebDriver: `drivers/firefox/geckodriver.exe`
+   - Edge WebDriver: `drivers/edge/msedgedriver.exe`
+
+## 🚀 Usage
+
+Run the GUI application with:
+
+```bash
+python turbolearn_gui.py
+```
+
+Or run the CLI version with:
+
+```bash
+python turbolearn_signup.py
+```
+
+### 🖱️ GUI Features
+
+The application provides several tabs:
+
+- **Automation**: Control the account creation process with various options
+- **Dashboard**: View and manage created accounts
+- **Analytics**: Visualize account creation success rates
+- **Scheduler**: Set up automated account creation tasks
+- **Settings**: Configure application appearance and manage data
+
+### ⌨️ Command-line options (CLI version)
+
+- `--private`: Start the browser in private/incognito mode
+- `--browser NAME`: Specify browser to use (chrome, firefox, edge, vivaldi, brave, opera)
+- `--driver PATH`: Specify a custom WebDriver executable path
+- `--clear-cache`: Clear WebDriver cache before starting (fixes many WebDriver errors)
+- `--manual-driver`: Force manual download of the WebDriver instead of using the automatic manager
+
+Examples:
+```bash
+# Run with private browsing
+python turbolearn_signup.py --private
+
+# Specify browser to use
+python turbolearn_signup.py --browser firefox
+
+# Use a specific WebDriver executable
+python turbolearn_signup.py --driver C:\path\to\chromedriver.exe
+
+# Clear the WebDriver cache to fix errors
+python turbolearn_signup.py --clear-cache
+```
+
+## ⚠️ Note
+
+This tool is for educational purposes only. Please respect TurboLearn's terms of service and policies.
+
+## 🔧 Troubleshooting
+
+- If the script fails to find elements on the page, it might be because the website structure has changed. Update the XPath selectors as needed.
+- If a browser is not detected automatically but you know it's installed, you can specify it in the GUI or with the `--browser` option in CLI.
+- If you experience WebDriver compatibility issues:
+  1. Use the built-in WebDrivers in the `drivers` directory
+  2. Try using the `--clear-cache` option in CLI mode
+  3. Download a compatible WebDriver manually and select it in the GUI
+  4. Make sure your browser is up to date
+  5. Try a different browser
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
+
+## 📜 License
+
+MIT License 
