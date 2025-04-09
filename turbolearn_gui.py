@@ -262,15 +262,67 @@ class RedirectText:
         self.buffer += string
         self.text_widget.configure(state="normal")
         
-        # Apply colorization to the output
-        if "Clicked" in string or "Found" in string or "successful" in string:
-            self.text_widget.insert("end", string, "success")
-        elif "Error" in string or "Failed" in string or "Could not" in string:
-            self.text_widget.insert("end", string, "error")
-        elif "Waiting" in string or "Looking" in string:
-            self.text_widget.insert("end", string, "info")
-        else:
-            self.text_widget.insert("end", string)
+        # Strip ANSI color codes
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        clean_string = ansi_escape.sub('', string)
+        
+        # Add timestamp to each new line if not empty
+        if clean_string.strip():
+            from datetime import datetime
+            timestamp = datetime.now().strftime("[%H:%M:%S] ")
+            
+            # Apply colorization to the output with emojis and timestamp
+            self.text_widget.insert("end", timestamp, "timestamp")
+            
+            if "Clicked" in clean_string or "Found" in clean_string:
+                self.text_widget.insert("end", "✅ ", "emoji")
+                self.text_widget.insert("end", clean_string, "success")
+            elif "successful" in clean_string or "successfully" in clean_string:
+                self.text_widget.insert("end", "🎉 ", "emoji")
+                self.text_widget.insert("end", clean_string, "success")
+            elif "Error" in clean_string or "Failed" in clean_string or "Could not" in clean_string:
+                self.text_widget.insert("end", "❌ ", "emoji")
+                self.text_widget.insert("end", clean_string, "error")
+            elif "Waiting" in clean_string or "Looking" in clean_string:
+                self.text_widget.insert("end", "🔍 ", "emoji")
+                self.text_widget.insert("end", clean_string, "info")
+            elif "Starting" in clean_string:
+                self.text_widget.insert("end", "🚀 ", "emoji")
+                self.text_widget.insert("end", clean_string, "starting")
+            elif "progress" in clean_string.lower() or "processing" in clean_string.lower():
+                self.text_widget.insert("end", "⏳ ", "emoji")
+                self.text_widget.insert("end", clean_string, "progress")
+            elif "browser" in clean_string.lower():
+                self.text_widget.insert("end", "🌐 ", "emoji")
+                self.text_widget.insert("end", clean_string, "browser")
+            elif "download" in clean_string.lower():
+                self.text_widget.insert("end", "📥 ", "emoji")
+                self.text_widget.insert("end", clean_string, "download")
+            elif "password" in clean_string.lower():
+                self.text_widget.insert("end", "🔑 ", "emoji")
+                self.text_widget.insert("end", clean_string, "password")
+            elif "email" in clean_string.lower():
+                self.text_widget.insert("end", "📧 ", "emoji")
+                self.text_widget.insert("end", clean_string, "email")
+            elif "=" in clean_string and "=" == clean_string[0]:
+                # Section divider
+                self.text_widget.insert("end", clean_string, "divider")
+            elif "initializing" in clean_string.lower() or "detected" in clean_string.lower():
+                # Handle initialization messages
+                self.text_widget.insert("end", clean_string, "info")
+            elif "navigating" in clean_string.lower() or "filling" in clean_string.lower():
+                # Handle navigation and form filling
+                self.text_widget.insert("end", clean_string, "browser")
+            elif "account information" in clean_string.lower():
+                # Handle account info headers
+                self.text_widget.insert("end", clean_string, "info")
+            else:
+                self.text_widget.insert("end", clean_string)
+                
+            # Update status bar with latest activity
+            if hasattr(self.text_widget, 'update_status_bar'):
+                self.text_widget.update_status_bar(clean_string)
             
         self.text_widget.configure(state="disabled")
         self.text_widget.see("end")
@@ -289,9 +341,9 @@ class AccountInfo:
                 with open(self.file_path, "r") as f:
                     return json.load(f)
             except:
-                return {"accounts": [], "statistics": {"success": 0, "failed": 0}}
+                return {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
         else:
-            return {"accounts": [], "statistics": {"success": 0, "failed": 0}}
+            return {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
             
     def save_accounts(self):
         with open(self.file_path, "w") as f:
@@ -322,6 +374,20 @@ class AccountInfo:
         
     def get_statistics(self):
         return self.accounts["statistics"]
+        
+    def get_auth_password(self):
+        """Get the stored authentication password"""
+        if "settings" not in self.accounts:
+            self.accounts["settings"] = {"auth_password": "turbolearn123"}
+            self.save_accounts()
+        return self.accounts["settings"].get("auth_password", "turbolearn123")
+        
+    def set_auth_password(self, new_password):
+        """Update the authentication password"""
+        if "settings" not in self.accounts:
+            self.accounts["settings"] = {}
+        self.accounts["settings"]["auth_password"] = new_password
+        self.save_accounts()
 
 # Create a function to detect installed drivers
 def detect_installed_drivers():
@@ -359,12 +425,12 @@ class TurboLearnGUI(ctk.CTk):
         self.geometry("1200x800")
         self.minsize(900, 700)
         
-        # Authentication settings
-        self.is_authenticated = False
-        self.auth_password = "turbolearn123"  # Default password, change this
-        
         # Initialize account tracker
         self.account_info = AccountInfo()
+        
+        # Authentication settings
+        self.is_authenticated = False
+        self.auth_password = self.account_info.get_auth_password()  # Load password from storage
         
         # Initialize browsers
         try:
@@ -429,27 +495,165 @@ class TurboLearnGUI(ctk.CTk):
         right_scroll = ctk.CTkScrollableFrame(right_frame, width=250)
         right_scroll.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Left frame - Console output
-        console_label = ctk.CTkLabel(left_frame, text="Console Output", font=ctk.CTkFont(size=16, weight="bold"))
-        console_label.pack(pady=(0, 10))
+        # Left frame - Console without header
+        console_container = ctk.CTkFrame(left_frame, fg_color=("gray90", "gray20"), corner_radius=10)
+        console_container.pack(fill="both", expand=True, padx=10, pady=10)
         
-        self.console = ctk.CTkTextbox(left_frame, width=700, height=600, font=ctk.CTkFont(family="Consolas", size=12))
-        self.console.pack(fill="both", expand=True, padx=10, pady=10)
+        # Search frame above console
+        search_frame = ctk.CTkFrame(console_container, fg_color="transparent")
+        search_frame.pack(fill="x", padx=8, pady=(8, 0))
+        
+        self.search_var = ctk.StringVar()
+        search_entry = ctk.CTkEntry(
+            search_frame, 
+            placeholder_text="Search in console...",
+            width=200,
+            textvariable=self.search_var
+        )
+        search_entry.pack(side="left", padx=(0, 5))
+        
+        search_button = ctk.CTkButton(
+            search_frame,
+            text="Find 🔍",
+            width=80,
+            command=self.search_console,
+            fg_color="#3b82f6",
+            hover_color="#2563eb"
+        )
+        search_button.pack(side="left", padx=5)
+        
+        clear_search_button = ctk.CTkButton(
+            search_frame,
+            text="Clear 🧹",
+            width=80,
+            command=self.clear_search,
+            fg_color="#ef4444",
+            hover_color="#dc2626"
+        )
+        clear_search_button.pack(side="left", padx=5)
+        
+        self.search_results_label = ctk.CTkLabel(
+            search_frame,
+            text="",
+            font=ctk.CTkFont(size=12)
+        )
+        self.search_results_label.pack(side="left", padx=5)
+        
+        # Bind Enter key to search
+        search_entry.bind("<Return>", lambda event: self.search_console())
+        
+        # Customized console with improved appearance
+        self.console = ctk.CTkTextbox(
+            console_container, 
+            width=700, 
+            height=600, 
+            font=ctk.CTkFont(family="Cascadia Code", size=12),
+            fg_color=("gray95", "gray15"),  # Light/dark mode backgrounds
+            text_color=("gray10", "gray90"),  # Light/dark mode text color
+            corner_radius=6,
+            border_width=1,
+            border_color=("gray75", "gray35")  # Light/dark mode border
+        )
+        self.console.pack(fill="both", expand=True, padx=8, pady=8)
         self.console.configure(state="disabled")
-        self.console.tag_config("success", foreground="green")
-        self.console.tag_config("error", foreground="red")
-        self.console.tag_config("info", foreground="blue")
+        
+        # Enhanced color tags for different message types
+        self.console.tag_config("success", foreground="#10b981")  # Green
+        self.console.tag_config("error", foreground="#ef4444")    # Red
+        self.console.tag_config("info", foreground="#3b82f6")     # Blue
+        self.console.tag_config("starting", foreground="#f59e0b") # Amber
+        self.console.tag_config("progress", foreground="#8b5cf6") # Purple
+        self.console.tag_config("browser", foreground="#06b6d4")  # Cyan
+        self.console.tag_config("download", foreground="#ec4899") # Pink
+        self.console.tag_config("password", foreground="#6366f1") # Indigo
+        self.console.tag_config("email", foreground="#14b8a6")    # Teal
+        self.console.tag_config("emoji", foreground="#f97316")    # Orange
+        self.console.tag_config("divider", foreground="#6b7280")  # Gray
+        self.console.tag_config("timestamp", foreground="#9ca3af") # Gray-400 for timestamps
+        self.console.tag_config("search_result", background="#fef3c7") # Highlight for search results
+        
+        # Add a function to update the status bar
+        def update_status_bar(text):
+            status = "Idle"
+            if "Starting" in text:
+                status = "Starting browser"
+            elif "Navigating" in text:
+                status = "Navigating website"
+            elif "Filling" in text:
+                status = "Filling form"
+            elif "Looking" in text or "Waiting" in text:
+                status = "Waiting for elements"
+            elif "Clicked" in text:
+                status = "Interacting with page"
+            elif "successful" in text or "successfully" in text:
+                status = "Operation completed"
+            elif "Error" in text or "Failed" in text:
+                status = "Error occurred"
+            
+            self.status_label.configure(text=f"Status: {status}")
+        
+        # Attach the function to the console for the RedirectText class to use
+        self.console.update_status_bar = update_status_bar
         
         # Create a text redirect
         self.text_redirect = RedirectText(self.console)
         
-        # Clear console button
-        clear_console_button = ctk.CTkButton(
-            left_frame,
-            text="Clear Console",
-            command=self.clear_console
+        # Status bar at the bottom
+        status_bar = ctk.CTkFrame(console_container, height=30, fg_color=("gray85", "gray25"))
+        status_bar.pack(fill="x", padx=8, pady=(0, 8))
+        
+        self.status_label = ctk.CTkLabel(
+            status_bar,
+            text="Status: Idle",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            anchor="w"
         )
-        clear_console_button.pack(pady=10)
+        self.status_label.pack(side="left", padx=10, pady=5)
+        
+        # Control buttons frame
+        console_controls = ctk.CTkFrame(left_frame)
+        console_controls.pack(fill="x", pady=10)
+        
+        # Clear console button with icon
+        clear_console_button = ctk.CTkButton(
+            console_controls,
+            text="Clear Console 🧹",
+            command=self.clear_console,
+            font=ctk.CTkFont(weight="bold"),
+            fg_color="#3b82f6",  # Blue
+            hover_color="#2563eb"  # Darker blue
+        )
+        clear_console_button.pack(side="left", padx=10)
+        
+        # Copy to clipboard button
+        copy_console_button = ctk.CTkButton(
+            console_controls,
+            text="Copy Output 📋",
+            command=self.copy_console_content,
+            font=ctk.CTkFont(weight="bold"),
+            fg_color="#10b981",  # Green
+            hover_color="#059669"  # Darker green
+        )
+        copy_console_button.pack(side="left", padx=10)
+        
+        # Save log button
+        save_log_button = ctk.CTkButton(
+            console_controls,
+            text="Save Log 💾",
+            command=self.save_console_log,
+            font=ctk.CTkFont(weight="bold"),
+            fg_color="#8b5cf6",  # Purple
+            hover_color="#7c3aed"  # Darker purple
+        )
+        save_log_button.pack(side="left", padx=10)
+        
+        # Add sample text to console when starting up
+        self.console.configure(state="normal")
+        welcome_message = "🚀 TurboLearn Console initialized and ready!\n"
+        welcome_message += "✨ Welcome to TurboLearn Signup Automation ✨\n\n"
+        welcome_message += "Select options and click 'Start Automation' to begin.\n"
+        self.console.insert("end", welcome_message)
+        self.console.configure(state="disabled")
         
         # Right frame - Controls
         controls_label = ctk.CTkLabel(right_scroll, text="Controls", font=ctk.CTkFont(size=16, weight="bold"))
@@ -772,8 +976,126 @@ class TurboLearnGUI(ctk.CTk):
     def clear_console(self):
         self.console.configure(state="normal")
         self.console.delete("1.0", "end")
+        
+        # Add a "console cleared" message
+        from datetime import datetime
+        timestamp = datetime.now().strftime("[%H:%M:%S] ")
+        self.console.insert("end", timestamp, "timestamp")
+        self.console.insert("end", "🧹 Console cleared and ready for new output!\n", "info")
         self.console.configure(state="disabled")
         
+        # Update status
+        self.status_label.configure(text="Status: Idle")
+        
+    def copy_console_content(self):
+        """Copy console content to clipboard"""
+        content = self.console.get("1.0", "end-1c")
+        self.clipboard_clear()
+        self.clipboard_append(content)
+        
+        # Show notification in console
+        self.console.configure(state="normal")
+        from datetime import datetime
+        timestamp = datetime.now().strftime("[%H:%M:%S] ")
+        self.console.insert("end", timestamp, "timestamp")
+        self.console.insert("end", "📋 Console content copied to clipboard!\n", "success")
+        self.console.configure(state="disabled")
+        self.console.see("end")
+        
+    def save_console_log(self):
+        """Save console output to a log file"""
+        import os
+        from datetime import datetime
+        from tkinter import filedialog
+        
+        # Generate default filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"turbolearn_log_{timestamp}.txt"
+        
+        # Get save location from user
+        filename = filedialog.asksaveasfilename(
+            initialdir=os.path.expanduser("~"),
+            initialfile=default_filename,
+            defaultextension=".txt",
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+        )
+        
+        if filename:
+            # Get console content
+            content = self.console.get("1.0", "end-1c")
+            
+            # Write to file
+            try:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+                
+                # Show success notification
+                self.console.configure(state="normal")
+                timestamp = datetime.now().strftime("[%H:%M:%S] ")
+                self.console.insert("end", timestamp, "timestamp")
+                self.console.insert("end", f"💾 Log saved successfully to: {filename}\n", "success")
+                self.console.configure(state="disabled")
+                self.console.see("end")
+            except Exception as e:
+                # Show error notification
+                self.console.configure(state="normal")
+                timestamp = datetime.now().strftime("[%H:%M:%S] ")
+                self.console.insert("end", timestamp, "timestamp")
+                self.console.insert("end", f"❌ Error saving log: {str(e)}\n", "error")
+                self.console.configure(state="disabled")
+                self.console.see("end")
+    
+    def search_console(self):
+        """Search text in the console"""
+        query = self.search_var.get().strip()
+        if not query:
+            return
+            
+        # Clear previous highlights
+        self.clear_search(update_ui=False)
+        
+        # Get console content
+        content = self.console.get("1.0", "end-1c")
+        
+        # Find all occurrences (case insensitive)
+        import re
+        matches = list(re.finditer(re.escape(query), content, re.IGNORECASE))
+        
+        # Highlight matches
+        for match in matches:
+            start_index = match.start()
+            end_index = match.end()
+            
+            # Convert byte offset to line and column
+            start_line = content[:start_index].count("\n") + 1
+            start_col = start_index - content[:start_index].rfind("\n") - 1 if "\n" in content[:start_index] else start_index
+            
+            end_line = content[:end_index].count("\n") + 1
+            end_col = end_index - content[:end_index].rfind("\n") - 1 if "\n" in content[:end_index] else end_index
+            
+            # Apply highlight tag
+            self.console.tag_add("search_result", f"{start_line}.{start_col}", f"{end_line}.{end_col}")
+        
+        # Update results count
+        count = len(matches)
+        if count > 0:
+            self.search_results_label.configure(text=f"{count} result{'s' if count != 1 else ''}")
+            
+            # Scroll to first match
+            if matches:
+                start_index = matches[0].start()
+                start_line = content[:start_index].count("\n") + 1
+                self.console.see(f"{start_line}.0")
+        else:
+            self.search_results_label.configure(text="No results")
+    
+    def clear_search(self, update_ui=True):
+        """Clear search highlights"""
+        self.console.tag_remove("search_result", "1.0", "end")
+        if update_ui:
+            self.search_var.set("")
+            self.search_results_label.configure(text="")
+    
     def setup_dashboard_tab(self):
         # Create frame for dashboard
         self.dashboard_frame = ctk.CTkFrame(self.tab_dashboard)
@@ -1949,12 +2271,140 @@ class TurboLearnGUI(ctk.CTk):
         )
         clear_button.pack(anchor="w", padx=20, pady=10)
         
+        # Security settings
+        security_frame = ctk.CTkFrame(self.settings_frame)
+        security_frame.pack(fill="x", padx=10, pady=10)
+        
+        security_label = ctk.CTkLabel(
+            security_frame, 
+            text="Security Settings", 
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        security_label.pack(anchor="w", padx=10, pady=10)
+        
+        # Password change section
+        password_frame = ctk.CTkFrame(security_frame)
+        password_frame.pack(fill="x", padx=20, pady=10)
+        
+        password_label = ctk.CTkLabel(
+            password_frame,
+            text="Change Authentication Password",
+            font=ctk.CTkFont(weight="bold")
+        )
+        password_label.pack(anchor="w", padx=10, pady=(10, 5))
+        
+        # Current password
+        current_pass_frame = ctk.CTkFrame(password_frame)
+        current_pass_frame.pack(fill="x", padx=10, pady=5)
+        
+        current_pass_label = ctk.CTkLabel(
+            current_pass_frame,
+            text="Current Password:",
+        )
+        current_pass_label.pack(side="left", padx=(0, 10))
+        
+        self.current_password_var = tk.StringVar()
+        current_pass_entry = ctk.CTkEntry(
+            current_pass_frame,
+            textvariable=self.current_password_var,
+            show="*",
+            width=200
+        )
+        current_pass_entry.pack(side="left")
+        
+        # New password
+        new_pass_frame = ctk.CTkFrame(password_frame)
+        new_pass_frame.pack(fill="x", padx=10, pady=5)
+        
+        new_pass_label = ctk.CTkLabel(
+            new_pass_frame,
+            text="New Password:",
+        )
+        new_pass_label.pack(side="left", padx=(0, 10))
+        
+        self.new_password_var = tk.StringVar()
+        new_pass_entry = ctk.CTkEntry(
+            new_pass_frame,
+            textvariable=self.new_password_var,
+            show="*",
+            width=200
+        )
+        new_pass_entry.pack(side="left")
+        
+        # Confirm new password
+        confirm_pass_frame = ctk.CTkFrame(password_frame)
+        confirm_pass_frame.pack(fill="x", padx=10, pady=5)
+        
+        confirm_pass_label = ctk.CTkLabel(
+            confirm_pass_frame,
+            text="Confirm Password:",
+        )
+        confirm_pass_label.pack(side="left", padx=(0, 10))
+        
+        self.confirm_password_var = tk.StringVar()
+        confirm_pass_entry = ctk.CTkEntry(
+            confirm_pass_frame,
+            textvariable=self.confirm_password_var,
+            show="*",
+            width=200
+        )
+        confirm_pass_entry.pack(side="left")
+        
+        # Change password button
+        change_pass_button = ctk.CTkButton(
+            password_frame,
+            text="Update Password",
+            command=self.change_password,
+            fg_color="blue",
+            hover_color="darkblue"
+        )
+        change_pass_button.pack(anchor="w", padx=10, pady=10)
+        
+        # Password info label
+        pass_info_label = ctk.CTkLabel(
+            password_frame,
+            text="This password protects your account data in the Dashboard tab",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        )
+        pass_info_label.pack(anchor="w", padx=10, pady=(0, 10))
+    
     def change_appearance_mode(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
         
     def change_scaling(self, new_scaling: str):
         new_scaling_float = int(new_scaling.replace("%", "")) / 100
         ctk.set_widget_scaling(new_scaling_float)
+        
+    def change_password(self):
+        """Handle password change request"""
+        current_password = self.current_password_var.get()
+        new_password = self.new_password_var.get()
+        confirm_password = self.confirm_password_var.get()
+        
+        # Validate inputs
+        if current_password != self.auth_password:
+            self.show_message("Error", "Current password is incorrect")
+            return
+            
+        if not new_password:
+            self.show_message("Error", "New password cannot be empty")
+            return
+            
+        if new_password != confirm_password:
+            self.show_message("Error", "New passwords do not match")
+            return
+            
+        # Update the password
+        self.auth_password = new_password
+        self.account_info.set_auth_password(new_password)
+        
+        # Clear the password fields
+        self.current_password_var.set("")
+        self.new_password_var.set("")
+        self.confirm_password_var.set("")
+        
+        self.show_message("Success", "Password updated successfully")
         
     def export_data(self):
         # Export account data as JSON
@@ -1984,7 +2434,7 @@ class TurboLearnGUI(ctk.CTk):
         
         if confirm:
             # Reset data
-            self.account_info.accounts = {"accounts": [], "statistics": {"success": 0, "failed": 0}}
+            self.account_info.accounts = {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
             self.account_info.save_accounts()
             
             # Refresh UI
