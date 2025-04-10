@@ -420,6 +420,39 @@ class TurboLearnGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
         
+        # Define color themes with blue accent instead of purple
+        self.colors = {
+            "light": {
+                "bg": "#ffffff",
+                "fg": "#18181b",
+                "bg_secondary": "#f1f5f9",
+                "border": "#e2e8f0",
+                "accent": "#3a7ebf",  # Changed from #6923ff to blue
+                "accent_foreground": "#f8fafc",
+                "success": "#22c55e",
+                "warning": "#f59e0b",
+                "error": "#ef4444",
+                "icon": "#64748b"
+            },
+            "dark": {
+                "bg": "#18181b",
+                "fg": "#f8fafc",
+                "bg_secondary": "#27272a",
+                "border": "#3f3f46",
+                "accent": "#3a7ebf",  # Changed from #6923ff to blue
+                "accent_foreground": "#f8fafc",
+                "success": "#22c55e",
+                "warning": "#f59e0b",
+                "error": "#ef4444",
+                "icon": "#94a3b8"
+            }
+        }
+        
+        # Create app icon if it doesn't exist
+        self.create_app_icon()
+        
+        # Continue with the rest of initialization
+        
         # Configure window
         self.title("TurboLearn Signup Automation")
         self.geometry("1200x800")
@@ -1099,41 +1132,34 @@ class TurboLearnGUI(ctk.CTk):
     def setup_dashboard_tab(self):
         # Create frame for dashboard
         self.dashboard_frame = ctk.CTkFrame(self.tab_dashboard)
-        self.dashboard_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Add title
-        dashboard_title = ctk.CTkLabel(
-            self.dashboard_frame, 
-            text="Account Dashboard", 
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        dashboard_title.pack(pady=10)
-        
-        # Check authentication before showing personal data
-        if not self.is_authenticated:
-            # Show authentication prompt
-            self.create_auth_panel()
-        else:
-            # Show dashboard content
+        self.dashboard_frame.pack(fill="both", expand=True)
+
+        # Handle authentication if enabled
+        if hasattr(self, 'dashboard_login_var') and not self.dashboard_login_var.get():
+            # Skip authentication if disabled
             self.create_dashboard_content()
+        else:
+            # Create authentication panel
+            self.create_auth_panel()
     
     def create_auth_panel(self):
-        """Show authentication panel for accessing personal dashboard data"""
+        """Create an authentication panel for dashboard"""
         self.auth_frame = ctk.CTkFrame(self.dashboard_frame)
-        self.auth_frame.pack(fill="both", expand=True, padx=50, pady=50)
+        self.auth_frame.pack(expand=True, fill="both")
         
-        auth_label = ctk.CTkLabel(
+        # Add padlock icon or similar visual
+        icon_label = ctk.CTkLabel(
             self.auth_frame,
-            text="Authentication Required",
-            font=ctk.CTkFont(size=18, weight="bold")
+            text="🔒",
+            font=ctk.CTkFont(size=48)
         )
-        auth_label.pack(pady=(20, 10))
+        icon_label.pack(pady=(40, 10))
         
+        # Add login message
         info_label = ctk.CTkLabel(
             self.auth_frame,
-            text="Account information is protected.\nPlease authenticate to view your data.",
-            font=ctk.CTkFont(size=14),
-            justify="center"
+            text="Authentication Required",
+            font=ctk.CTkFont(size=20, weight="bold")
         )
         info_label.pack(pady=10)
         
@@ -1153,6 +1179,7 @@ class TurboLearnGUI(ctk.CTk):
             textvariable=self.password_var,
             show="*",
             width=200,
+            height=30,
             placeholder_text="turbolearn123"  # Default password placeholder
         )
         password_entry.pack(side="left")
@@ -1179,25 +1206,36 @@ class TurboLearnGUI(ctk.CTk):
         public_info.pack(pady=30)
     
     def authenticate(self):
-        """Verify the entered password"""
-        if self.password_var.get() == self.auth_password:
-            # Password correct
+        """Authenticate user to view dashboard data"""
+        # Skip authentication if dashboard login is disabled
+        if hasattr(self, 'dashboard_login_var') and not self.dashboard_login_var.get():
+            self.is_authenticated = True
+            for widget in self.dashboard_frame.winfo_children():
+                widget.destroy()
+            self.create_dashboard_content()
+            return
+            
+        entered_password = self.password_var.get()
+        
+        # Get stored password or use default
+        stored_password = self.account_info.get_auth_password()
+        if stored_password is None:
+            stored_password = "turbolearn123"  # Default password
+        
+        if entered_password == stored_password:
             self.is_authenticated = True
             
-            # Clear authentication panel
-            self.auth_frame.destroy()
+            # Clear password entry
+            self.password_var.set("")
             
-            # Show the dashboard content
+            # Destroy authentication panel
+            for widget in self.dashboard_frame.winfo_children():
+                widget.destroy()
+                
+            # Create dashboard content
             self.create_dashboard_content()
         else:
-            # Show error message
-            error_label = ctk.CTkLabel(
-                self.auth_frame,
-                text="Incorrect password. Please try again.",
-                text_color="red",
-                font=ctk.CTkFont(size=12)
-            )
-            error_label.pack(pady=5)
+            self.show_message("Error", "Invalid password. Please try again.")
     
     def create_dashboard_content(self):
         """Show the actual dashboard content after authentication"""
@@ -1270,8 +1308,33 @@ class TurboLearnGUI(ctk.CTk):
             status_label.configure(text_color=status_color)
             status_label.grid(row=0, column=4, padx=5, pady=5, sticky="w")
             
+            # Action buttons
+            actions_frame = ctk.CTkFrame(row_frame)
+            actions_frame.grid(row=0, column=5, padx=5, pady=5, sticky="e")
+            
+            # Open in browser button
+            if account["status"] == "Success" and "url" in account and account["url"]:
+                open_button = ctk.CTkButton(
+                    actions_frame,
+                    text="Open",
+                    command=lambda acc=account: self.open_account(acc["url"]),
+                    width=60,
+                    height=25
+                )
+                open_button.pack(side="left", padx=5)
+            
+            # Copy info button
+            copy_button = ctk.CTkButton(
+                actions_frame,
+                text="Copy",
+                command=lambda acc=account: self.copy_account_info(acc),
+                width=60,
+                height=25
+            )
+            copy_button.pack(side="left", padx=5)
+            
             # Configure grid
-            for j in range(5):
+            for j in range(6):
                 row_frame.grid_columnconfigure(j, weight=1)
                 
             # Add hover effect
@@ -1478,20 +1541,16 @@ class TurboLearnGUI(ctk.CTk):
         self.show_message("Copied", "Value copied to clipboard!")
     
     def copy_account_info(self, account):
-        info = f"TurboLearn Account Information\n"
-        info += f"---------------------------\n"
-        info += f"First Name: {account['first_name']}\n"
-        info += f"Last Name: {account['last_name']}\n"
+        """Copy account information in a specific format"""
+        info = f"Name: {account['first_name']} {account['last_name']}\n"
         info += f"Email: {account['email']}\n"
         info += f"Password: {account['password']}\n"
-        info += f"Created: {account['created_at']}\n"
         if "url" in account and account["url"]:
             info += f"URL: {account['url']}\n"
-        info += f"Status: {account['status']}\n"
         
         self.clipboard_clear()
         self.clipboard_append(info)
-        self.show_message("Copied", "Full account information copied to clipboard!")
+        self.show_message("Copied", "Account information copied to clipboard!")
     
     def delete_account(self, account):
         confirm = tk.messagebox.askyesno(
@@ -2199,100 +2258,110 @@ class TurboLearnGUI(ctk.CTk):
         self.after(60000, self.check_scheduled_tasks)
 
     def setup_settings_tab(self):
+        """Setup the settings tab"""
         # Create frame for settings
         self.settings_frame = ctk.CTkFrame(self.tab_settings)
         self.settings_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Add title
+        # Settings title
         settings_title = ctk.CTkLabel(
-            self.settings_frame, 
-            text="Settings", 
+            self.settings_frame,
+            text="Settings",
             font=ctk.CTkFont(size=20, weight="bold")
         )
         settings_title.pack(pady=10)
         
+        # Create scrollable frame for settings
+        settings_scroll = ctk.CTkScrollableFrame(self.settings_frame)
+        settings_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
         # Theme section
-        theme_frame = ctk.CTkFrame(self.settings_frame)
+        theme_frame = ctk.CTkFrame(settings_scroll)
         theme_frame.pack(fill="x", padx=10, pady=10)
         
         theme_label = ctk.CTkLabel(
-            theme_frame, 
-            text="Appearance", 
+            theme_frame,
+            text="Appearance",
             font=ctk.CTkFont(size=16, weight="bold")
         )
         theme_label.pack(anchor="w", padx=10, pady=10)
         
-        # Theme mode option menu
-        appearance_mode_label = ctk.CTkLabel(theme_frame, text="Appearance Mode:")
-        appearance_mode_label.pack(anchor="w", padx=20, pady=(10, 0))
+        # Appearance mode
+        appearance_label = ctk.CTkLabel(theme_frame, text="Appearance Mode:")
+        appearance_label.pack(anchor="w", padx=10, pady=5)
         
-        appearance_mode_menu = ctk.CTkOptionMenu(
-            theme_frame, 
+        appearance_menu = ctk.CTkOptionMenu(
+            theme_frame,
             values=["System", "Light", "Dark"],
             command=self.change_appearance_mode
         )
-        appearance_mode_menu.pack(anchor="w", padx=20, pady=10)
+        appearance_menu.set(ctk.get_appearance_mode())
+        appearance_menu.pack(anchor="w", padx=20, pady=5)
         
-        # UI Scale option menu
-        ui_scale_label = ctk.CTkLabel(theme_frame, text="UI Scaling:")
-        ui_scale_label.pack(anchor="w", padx=20, pady=(10, 0))
+        # UI Scaling
+        scaling_label = ctk.CTkLabel(theme_frame, text="UI Scaling:")
+        scaling_label.pack(anchor="w", padx=10, pady=5)
         
         ui_scale_menu = ctk.CTkOptionMenu(
-            theme_frame, 
+            theme_frame,
             values=["80%", "90%", "100%", "110%", "120%"],
-            command=self.change_scaling
+            command=self.change_scaling_event
         )
         ui_scale_menu.set("100%")
-        ui_scale_menu.pack(anchor="w", padx=20, pady=10)
+        ui_scale_menu.pack(anchor="w", padx=20, pady=5)
         
-        # Data management
-        data_frame = ctk.CTkFrame(self.settings_frame)
-        data_frame.pack(fill="x", padx=10, pady=10)
+        # Dashboard Login Toggle
+        dashboard_frame = ctk.CTkFrame(settings_scroll)
+        dashboard_frame.pack(fill="x", padx=10, pady=10)
         
-        data_label = ctk.CTkLabel(
-            data_frame, 
-            text="Data Management", 
+        dashboard_label = ctk.CTkLabel(
+            dashboard_frame,
+            text="Dashboard Login",
             font=ctk.CTkFont(size=16, weight="bold")
         )
-        data_label.pack(anchor="w", padx=10, pady=10)
+        dashboard_label.pack(anchor="w", padx=10, pady=10)
         
-        export_button = ctk.CTkButton(
-            data_frame,
-            text="Export Account Data",
-            command=self.export_data
+        self.dashboard_login_var = tk.BooleanVar(value=True)
+        dashboard_toggle = ctk.CTkSwitch(
+            dashboard_frame,
+            text="Enable Dashboard Login",
+            variable=self.dashboard_login_var,
+            command=self.toggle_dashboard_login
         )
-        export_button.pack(anchor="w", padx=20, pady=10)
+        dashboard_toggle.pack(anchor="w", padx=20, pady=5)
         
-        clear_button = ctk.CTkButton(
-            data_frame,
-            text="Clear Account Data",
-            command=self.clear_data,
-            fg_color="red",
-            hover_color="darkred"
+        # Shortcut section
+        shortcut_frame = ctk.CTkFrame(settings_scroll)
+        shortcut_frame.pack(fill="x", padx=10, pady=10)
+        
+        shortcut_label = ctk.CTkLabel(
+            shortcut_frame,
+            text="Desktop Shortcut",
+            font=ctk.CTkFont(size=16, weight="bold")
         )
-        clear_button.pack(anchor="w", padx=20, pady=10)
+        shortcut_label.pack(anchor="w", padx=10, pady=10)
+        
+        create_shortcut_button = ctk.CTkButton(
+            shortcut_frame,
+            text="Create Desktop Shortcut",
+            command=self.create_desktop_shortcut
+        )
+        create_shortcut_button.pack(anchor="w", padx=20, pady=10)
         
         # Security settings
-        security_frame = ctk.CTkFrame(self.settings_frame)
+        security_frame = ctk.CTkFrame(settings_scroll)
         security_frame.pack(fill="x", padx=10, pady=10)
         
         security_label = ctk.CTkLabel(
-            security_frame, 
-            text="Security Settings", 
+            security_frame,
+            text="Security",
             font=ctk.CTkFont(size=16, weight="bold")
         )
         security_label.pack(anchor="w", padx=10, pady=10)
         
         # Password change section
         password_frame = ctk.CTkFrame(security_frame)
-        password_frame.pack(fill="x", padx=20, pady=10)
-        
-        password_label = ctk.CTkLabel(
-            password_frame,
-            text="Change Authentication Password",
-            font=ctk.CTkFont(weight="bold")
-        )
-        password_label.pack(anchor="w", padx=10, pady=(10, 5))
+        password_frame.pack(fill="x", padx=10, pady=10)
         
         # Current password
         current_pass_frame = ctk.CTkFrame(password_frame)
@@ -2301,6 +2370,7 @@ class TurboLearnGUI(ctk.CTk):
         current_pass_label = ctk.CTkLabel(
             current_pass_frame,
             text="Current Password:",
+            width=150
         )
         current_pass_label.pack(side="left", padx=(0, 10))
         
@@ -2309,7 +2379,8 @@ class TurboLearnGUI(ctk.CTk):
             current_pass_frame,
             textvariable=self.current_password_var,
             show="*",
-            width=200
+            width=200,
+            height=30
         )
         current_pass_entry.pack(side="left")
         
@@ -2320,6 +2391,7 @@ class TurboLearnGUI(ctk.CTk):
         new_pass_label = ctk.CTkLabel(
             new_pass_frame,
             text="New Password:",
+            width=150
         )
         new_pass_label.pack(side="left", padx=(0, 10))
         
@@ -2328,17 +2400,19 @@ class TurboLearnGUI(ctk.CTk):
             new_pass_frame,
             textvariable=self.new_password_var,
             show="*",
-            width=200
+            width=200,
+            height=30
         )
         new_pass_entry.pack(side="left")
         
-        # Confirm new password
+        # Confirm password
         confirm_pass_frame = ctk.CTkFrame(password_frame)
         confirm_pass_frame.pack(fill="x", padx=10, pady=5)
         
         confirm_pass_label = ctk.CTkLabel(
             confirm_pass_frame,
             text="Confirm Password:",
+            width=150
         )
         confirm_pass_label.pack(side="left", padx=(0, 10))
         
@@ -2347,33 +2421,25 @@ class TurboLearnGUI(ctk.CTk):
             confirm_pass_frame,
             textvariable=self.confirm_password_var,
             show="*",
-            width=200
+            width=200,
+            height=30
         )
         confirm_pass_entry.pack(side="left")
         
         # Change password button
         change_pass_button = ctk.CTkButton(
             password_frame,
-            text="Update Password",
+            text="Change Password",
             command=self.change_password,
             fg_color="blue",
             hover_color="darkblue"
         )
         change_pass_button.pack(anchor="w", padx=10, pady=10)
-        
-        # Password info label
-        pass_info_label = ctk.CTkLabel(
-            password_frame,
-            text="This password protects your account data in the Dashboard tab",
-            font=ctk.CTkFont(size=10),
-            text_color="gray"
-        )
-        pass_info_label.pack(anchor="w", padx=10, pady=(0, 10))
     
     def change_appearance_mode(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
         
-    def change_scaling(self, new_scaling: str):
+    def change_scaling_event(self, new_scaling: str):
         new_scaling_float = int(new_scaling.replace("%", "")) / 100
         ctk.set_widget_scaling(new_scaling_float)
         
@@ -2715,6 +2781,106 @@ class TurboLearnGUI(ctk.CTk):
             driver_path = self.available_drivers[selection]
             self.driver_path.set(driver_path)
             self.driver_path_label.configure(text=f"Selected: {os.path.basename(driver_path)}")
+
+    def create_desktop_shortcut(self):
+        """Create desktop shortcut to launch the application"""
+        try:
+            import winshell
+            import win32com.client
+            from win32com.shell import shell, shellcon
+            import os
+            
+            # Get desktop path
+            desktop = winshell.desktop()
+            
+            # Create shortcut path
+            shortcut_path = os.path.join(desktop, "TurboLearn Crack.lnk")
+            
+            # Get application path
+            target = sys.executable
+            
+            # Get or create icon
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
+            if not os.path.exists(icon_path):
+                icon_path = self.create_app_icon()
+            
+            # Create shell link
+            shell = win32com.client.Dispatch("WScript.Shell")
+            shortcut = shell.CreateShortCut(shortcut_path)
+            shortcut.Targetpath = target
+            shortcut.WorkingDirectory = os.path.dirname(os.path.abspath(__file__))
+            shortcut.Arguments = os.path.abspath(__file__)
+            
+            # Use the icon if it exists, otherwise use the executable
+            if icon_path and os.path.exists(icon_path):
+                shortcut.IconLocation = icon_path
+            else:
+                shortcut.IconLocation = target
+            
+            # Save shortcut
+            shortcut.save()
+            
+            self.show_message("Success", f"Desktop shortcut created at: {shortcut_path}")
+        except ImportError as e:
+            # Handle missing modules
+            missing_module = str(e).split("'")[1] if "'" in str(e) else str(e)
+            self.show_message("Error", f"Failed to create shortcut: No module named '{missing_module}'\n\nPlease run: pip install {missing_module}")
+        except Exception as e:
+            # Handle other errors
+            self.show_message("Error", f"Failed to create shortcut: {str(e)}")
+
+    def toggle_dashboard_login(self):
+        # Toggle the dashboard login requirement
+        is_enabled = self.dashboard_login_var.get()
+        
+        # Clear the dashboard frame content
+        for widget in self.dashboard_frame.winfo_children():
+            widget.destroy()
+            
+        if is_enabled:
+            # If login is enabled, show auth panel
+            self.create_auth_panel()
+            self.show_message("Success", "Dashboard login enabled. Authentication is now required.")
+        else:
+            # If login is disabled, show dashboard content directly
+            self.is_authenticated = True
+            self.create_dashboard_content()
+            self.show_message("Info", "Dashboard login disabled. Authentication is now bypassed.")
+
+    def create_app_icon(self):
+        """Create an application icon file if it doesn't exist"""
+        try:
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
+            
+            # If icon already exists, don't recreate it
+            if os.path.exists(icon_path):
+                return icon_path
+                
+            # Check if PIL is installed
+            try:
+                from PIL import Image, ImageDraw
+            except ImportError:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "pillow"])
+                from PIL import Image, ImageDraw
+                
+            # Create a base image (64x64) with transparent background
+            img = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            
+            # Draw a blue circle for the background
+            draw.ellipse((4, 4, 60, 60), fill=(58, 126, 191))  # #3a7ebf in RGB
+            
+            # Draw a stylized "T" in white
+            draw.rectangle((20, 15, 44, 22), fill=(255, 255, 255))
+            draw.rectangle((28, 22, 36, 48), fill=(255, 255, 255))
+            
+            # Save as .ico file
+            img.save(icon_path, format='ICO')
+            return icon_path
+            
+        except Exception as e:
+            print(f"Error creating icon: {str(e)}")
+            return None
 
 if __name__ == "__main__":
     # Check if matplotlib is installed
