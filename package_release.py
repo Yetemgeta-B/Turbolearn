@@ -34,12 +34,12 @@ def create_executable():
     icon_path = "web/static/img/logo.ico"
     icon_param = f"--icon={icon_path}" if os.path.exists(icon_path) else ""
     
-    # Build the PyInstaller command
+    # Build the PyInstaller command using python -m
     data_params = " ".join([f"--add-data '{src}{os.pathsep}{dst}'" for src, dst in data_files])
     
     # Create spec file first with all options
     cmd = (
-        f"pyinstaller {icon_param} "
+        f"python -m pyinstaller {icon_param} "
         f"--name TurboLearnCrack "
         f"--onefile "
         f"--windowed "
