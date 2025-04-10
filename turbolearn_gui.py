@@ -9,6 +9,7 @@ import tkinter as tk
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import uuid
 try:
     import customtkinter as ctk
 except ImportError:
@@ -332,25 +333,45 @@ class RedirectText:
 
 class AccountInfo:
     def __init__(self):
-        self.file_path = os.path.join(os.path.expanduser("~"), "turbolearn_accounts.json")
+        self.data_dir = os.path.join(os.path.expanduser("~"), ".turbolearn")
+        self.accounts_file = os.path.join(self.data_dir, "accounts.json")
+        
+        # Create directory if it doesn't exist
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+            
+        # Initialize or load accounts
         self.accounts = self.load_accounts()
         
     def load_accounts(self):
-        if os.path.exists(self.file_path):
+        if os.path.exists(self.accounts_file):
             try:
-                with open(self.file_path, "r") as f:
-                    return json.load(f)
+                with open(self.accounts_file, "r") as file:
+                    return json.load(file)
             except:
-                return {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
-        else:
-            return {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
-            
+                pass
+                
+        # Default structure if file doesn't exist or error
+        return {
+            "accounts": [],
+            "statistics": {"success": 0, "failed": 0},
+            "settings": {"auth_password": "turbolearn123"},
+            "favorites": [],  # Store favorite account IDs
+            "tags": {},       # Map tag names to colors
+            "account_tags": {}  # Map account IDs to list of tags
+        }
+        
     def save_accounts(self):
-        with open(self.file_path, "w") as f:
-            json.dump(self.accounts, f)
+        with open(self.accounts_file, "w") as file:
+            json.dump(self.accounts, file)
             
     def add_account(self, first_name, last_name, email, password, url, success=True):
+        # Create unique ID for the account
+        account_id = str(uuid.uuid4())
+        
+        # Create account object
         account = {
+            "id": account_id,
             "first_name": first_name,
             "last_name": last_name,
             "email": email,
@@ -359,6 +380,8 @@ class AccountInfo:
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "status": "Success" if success else "Failed"
         }
+        
+        # Add to accounts list
         self.accounts["accounts"].append(account)
         
         # Update statistics
@@ -367,27 +390,192 @@ class AccountInfo:
         else:
             self.accounts["statistics"]["failed"] += 1
             
+        # Save to file
         self.save_accounts()
         
-    def get_accounts(self):
-        return self.accounts["accounts"]
+        return account
         
+    def get_accounts(self, favorites_first=True):
+        accounts = self.accounts["accounts"]
+        
+        if favorites_first and "favorites" in self.accounts:
+            # Sort with favorites at the top
+            favorites = self.accounts["favorites"]
+            sorted_accounts = []
+            
+            # Add favorites first
+            for account in accounts:
+                if account["id"] in favorites:
+                    sorted_accounts.append(account)
+            
+            # Add non-favorites
+            for account in accounts:
+                if account["id"] not in favorites:
+                    sorted_accounts.append(account)
+                    
+            return sorted_accounts
+        
+        return accounts
+    
     def get_statistics(self):
         return self.accounts["statistics"]
         
     def get_auth_password(self):
-        """Get the stored authentication password"""
-        if "settings" not in self.accounts:
-            self.accounts["settings"] = {"auth_password": "turbolearn123"}
-            self.save_accounts()
-        return self.accounts["settings"].get("auth_password", "turbolearn123")
+        if "settings" in self.accounts and "auth_password" in self.accounts["settings"]:
+            return self.accounts["settings"]["auth_password"]
+        return "turbolearn123"  # Default password
         
     def set_auth_password(self, new_password):
-        """Update the authentication password"""
         if "settings" not in self.accounts:
             self.accounts["settings"] = {}
+            
         self.accounts["settings"]["auth_password"] = new_password
         self.save_accounts()
+        
+    def toggle_favorite(self, account_id):
+        """Toggle favorite status for an account"""
+        if "favorites" not in self.accounts:
+            self.accounts["favorites"] = []
+            
+        if account_id in self.accounts["favorites"]:
+            self.accounts["favorites"].remove(account_id)
+            is_favorite = False
+        else:
+            self.accounts["favorites"].append(account_id)
+            is_favorite = True
+            
+        self.save_accounts()
+        return is_favorite
+        
+    def is_favorite(self, account_id):
+        """Check if an account is favorite"""
+        if "favorites" not in self.accounts:
+            return False
+        return account_id in self.accounts["favorites"]
+    
+    def add_tag(self, tag_name, tag_color="#3a7ebf"):
+        """Add a new tag with color"""
+        if "tags" not in self.accounts:
+            self.accounts["tags"] = {}
+            
+        self.accounts["tags"][tag_name] = tag_color
+        self.save_accounts()
+        
+    def remove_tag(self, tag_name):
+        """Remove a tag and all its assignments"""
+        if "tags" not in self.accounts or tag_name not in self.accounts["tags"]:
+            return False
+            
+        # Remove the tag
+        del self.accounts["tags"][tag_name]
+        
+        # Remove tag assignments from accounts
+        if "account_tags" in self.accounts:
+            for account_id in list(self.accounts["account_tags"].keys()):
+                if tag_name in self.accounts["account_tags"][account_id]:
+                    self.accounts["account_tags"][account_id].remove(tag_name)
+                    
+                # Clean up empty tag lists
+                if not self.accounts["account_tags"][account_id]:
+                    del self.accounts["account_tags"][account_id]
+                    
+        self.save_accounts()
+        return True
+        
+    def get_tags(self):
+        """Get all available tags with colors"""
+        if "tags" not in self.accounts:
+            self.accounts["tags"] = {}
+        return self.accounts["tags"]
+        
+    def add_account_tag(self, account_id, tag_name):
+        """Add a tag to an account"""
+        # Make sure the tag exists
+        if "tags" not in self.accounts or tag_name not in self.accounts["tags"]:
+            return False
+            
+        # Initialize account_tags if needed
+        if "account_tags" not in self.accounts:
+            self.accounts["account_tags"] = {}
+            
+        # Initialize tags for this account if needed
+        if account_id not in self.accounts["account_tags"]:
+            self.accounts["account_tags"][account_id] = []
+            
+        # Add the tag if not already there
+        if tag_name not in self.accounts["account_tags"][account_id]:
+            self.accounts["account_tags"][account_id].append(tag_name)
+            self.save_accounts()
+            
+        return True
+        
+    def remove_account_tag(self, account_id, tag_name):
+        """Remove a tag from an account"""
+        if "account_tags" not in self.accounts or account_id not in self.accounts["account_tags"]:
+            return False
+            
+        if tag_name in self.accounts["account_tags"][account_id]:
+            self.accounts["account_tags"][account_id].remove(tag_name)
+            
+            # Clean up empty tag lists
+            if not self.accounts["account_tags"][account_id]:
+                del self.accounts["account_tags"][account_id]
+                
+            self.save_accounts()
+            return True
+            
+        return False
+        
+    def get_account_tags(self, account_id):
+        """Get all tags for an account"""
+        if "account_tags" not in self.accounts or account_id not in self.accounts["account_tags"]:
+            return []
+            
+        return self.accounts["account_tags"][account_id]
+        
+    def get_accounts_by_tag(self, tag_name):
+        """Get all accounts with a specific tag"""
+        result = []
+        
+        if "account_tags" not in self.accounts:
+            return result
+            
+        # Find all accounts with this tag
+        for account_id, tags in self.accounts["account_tags"].items():
+            if tag_name in tags:
+                # Find the account by ID
+                for account in self.accounts["accounts"]:
+                    if account["id"] == account_id:
+                        result.append(account)
+                        break
+                        
+        return result
+    
+    def delete_account(self, account_id):
+        """Delete an account and all its references"""
+        # Remove from accounts list
+        for i, account in enumerate(self.accounts["accounts"]):
+            if account["id"] == account_id:
+                del self.accounts["accounts"][i]
+                
+                # Update statistics
+                if account["status"] == "Success":
+                    self.accounts["statistics"]["success"] -= 1
+                else:
+                    self.accounts["statistics"]["failed"] -= 1
+                    
+                # Remove from favorites
+                if "favorites" in self.accounts and account_id in self.accounts["favorites"]:
+                    self.accounts["favorites"].remove(account_id)
+                    
+                # Remove from tags
+                if "account_tags" in self.accounts and account_id in self.accounts["account_tags"]:
+                    del self.accounts["account_tags"][account_id]
+                    
+                self.save_accounts()
+                return True
+                
+        return False
 
 # Create a function to detect installed drivers
 def detect_installed_drivers():
@@ -1241,17 +1429,63 @@ class TurboLearnGUI(ctk.CTk):
     
     def create_dashboard_content(self):
         """Show the actual dashboard content after authentication"""
-        # Add refresh button
-        refresh_button = ctk.CTkButton(
-            self.dashboard_frame,
-            text="Refresh Data",
-            command=self.refresh_dashboard
+        # Add toolbar frame with actions
+        toolbar_frame = ctk.CTkFrame(self.dashboard_frame)
+        toolbar_frame.pack(fill="x", padx=10, pady=(10, 5))
+        
+        # Left side of toolbar
+        left_actions = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
+        left_actions.pack(side="left", fill="x", expand=True)
+        
+        # Search frame
+        search_frame = ctk.CTkFrame(left_actions, fg_color="transparent")
+        search_frame.pack(side="left", padx=5, fill="x", expand=True)
+        
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", lambda *args: self.filter_accounts())
+        
+        search_entry = ctk.CTkEntry(
+            search_frame, 
+            placeholder_text="Search accounts...",
+            textvariable=self.search_var,
+            width=200
         )
-        refresh_button.pack(pady=10)
+        search_entry.pack(side="left", padx=5, fill="x", expand=True)
+        
+        # Clear search button
+        clear_button = ctk.CTkButton(
+            search_frame,
+            text="✕",
+            width=30,
+            command=lambda: self.search_var.set("")
+        )
+        clear_button.pack(side="left", padx=5)
+        
+        # Right side of toolbar
+        right_actions = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
+        right_actions.pack(side="right")
+        
+        # Refresh button
+        refresh_button = ctk.CTkButton(
+            right_actions,
+            text="Refresh",
+            command=self.refresh_dashboard,
+            width=80
+        )
+        refresh_button.pack(side="left", padx=5)
+        
+        # Export button
+        export_button = ctk.CTkButton(
+            right_actions,
+            text="Export CSV",
+            command=self.export_accounts_to_csv,
+            width=80
+        )
+        export_button.pack(side="left", padx=5)
         
         # Create split view for table and detail view
         self.dashboard_split = ctk.CTkFrame(self.dashboard_frame)
-        self.dashboard_split.pack(fill="both", expand=True, padx=10, pady=10)
+        self.dashboard_split.pack(fill="both", expand=True, padx=10, pady=5)
         
         # Table frame - left side
         self.table_frame = ctk.CTkFrame(self.dashboard_split)
@@ -1260,8 +1494,11 @@ class TurboLearnGUI(ctk.CTk):
         # Detail frame - right side (initially hidden)
         self.detail_frame = ctk.CTkFrame(self.dashboard_split)
         
+        # Add quick access bar at the bottom
+        self.create_quick_access_bar()
+        
         # Table headers
-        headers = ["First Name", "Last Name", "Email", "Created", "Status"]
+        headers = ["First Name", "Last Name", "Email", "Created", "Status", "Actions"]
         header_frame = ctk.CTkFrame(self.table_frame)
         header_frame.pack(fill="x", padx=5, pady=5)
         
@@ -1278,10 +1515,14 @@ class TurboLearnGUI(ctk.CTk):
         # Load accounts
         self.refresh_dashboard()
         self.account_detail = None  # Track the currently selected account
-    
-    def refresh_dashboard(self):
-        # If not authenticated, don't load private data
-        if not hasattr(self, 'account_scroll') or not self.is_authenticated:
+        
+    def filter_accounts(self, *args):
+        """Filter accounts based on search query"""
+        query = self.search_var.get().lower() if hasattr(self, 'search_var') else ""
+        
+        # If no search query, just refresh normally
+        if not query:
+            self.refresh_dashboard()
             return
             
         # Clear existing widgets in scrollable frame
@@ -1290,8 +1531,36 @@ class TurboLearnGUI(ctk.CTk):
             
         # Get accounts
         accounts = self.account_info.get_accounts()
+        filtered_accounts = []
         
-        # Add accounts to table
+        # Filter based on search query
+        for account in accounts:
+            # Search in name, email, date
+            search_text = (
+                f"{account['first_name']} {account['last_name']} "
+                f"{account['email']} {account['created_at']} {account['status']}"
+            ).lower()
+            
+            if query in search_text:
+                filtered_accounts.append(account)
+        
+        # Add filtered accounts to table
+        self.display_filtered_accounts(filtered_accounts)
+    
+    def display_filtered_accounts(self, accounts):
+        """Display filtered list of accounts"""
+        # If no accounts match, show message
+        if not accounts:
+            no_results = ctk.CTkLabel(
+                self.account_scroll,
+                text="No accounts found matching your search",
+                font=ctk.CTkFont(size=14),
+                text_color="gray"
+            )
+            no_results.pack(pady=30)
+            return
+            
+        # Display accounts
         for i, account in enumerate(accounts):
             # Create colored background based on status
             bg_color = "#E8F5E9" if account["status"] == "Success" else "#FFEBEE"
@@ -1358,907 +1627,6 @@ class TurboLearnGUI(ctk.CTk):
             for child in row_frame.winfo_children():
                 child.bind("<Button-1>", lambda e, acc=account: self.show_account_details(acc))
     
-    def show_account_details(self, account):
-        # If detail frame is not packed, add it
-        if not self.detail_frame.winfo_children():
-            self.detail_frame.pack(side="right", fill="both", expand=False, padx=(5, 0), pady=0, ipadx=10, ipady=10, anchor="n")
-            self.detail_frame.configure(width=300)
-        else:
-            # Clear existing widgets
-            for widget in self.detail_frame.winfo_children():
-                widget.destroy()
-                
-        # Update the currently selected account
-        self.account_detail = account
-        
-        # Create detail view
-        detail_title = ctk.CTkLabel(
-            self.detail_frame, 
-            text="Account Details", 
-            font=ctk.CTkFont(size=18, weight="bold")
-        )
-        detail_title.pack(pady=10)
-        
-        # Add close button for detail view
-        close_button = ctk.CTkButton(
-            self.detail_frame,
-            text="Close Details",
-            command=self.close_account_details,
-            width=100,
-            fg_color="gray",
-            hover_color="darkgray"
-        )
-        close_button.pack(pady=(0, 20))
-        
-        # Create fields
-        fields_frame = ctk.CTkFrame(self.detail_frame)
-        fields_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Status indicator at the top
-        status_color = "green" if account["status"] == "Success" else "red"
-        status_frame = ctk.CTkFrame(fields_frame, fg_color=status_color)
-        status_frame.pack(fill="x", padx=10, pady=10)
-        
-        status_label = ctk.CTkLabel(
-            status_frame, 
-            text=f"Status: {account['status']}",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color="white"
-        )
-        status_label.pack(pady=10)
-        
-        # Account info
-        self.add_detail_field(fields_frame, "First Name", account["first_name"])
-        self.add_detail_field(fields_frame, "Last Name", account["last_name"])
-        self.add_detail_field(fields_frame, "Email", account["email"])
-        self.add_detail_field(fields_frame, "Password", account["password"], True)
-        self.add_detail_field(fields_frame, "Created", account["created_at"])
-        if "url" in account and account["url"]:
-            self.add_detail_field(fields_frame, "URL", account["url"], is_url=True)
-        
-        # Add action buttons
-        action_frame = ctk.CTkFrame(fields_frame)
-        action_frame.pack(fill="x", padx=10, pady=10)
-        
-        # Add Open Account button if URL exists and is valid
-        has_valid_url = "url" in account and account["url"] and account["url"] not in ["Unknown", ""]
-        if has_valid_url and account["status"] == "Success":
-            open_button = ctk.CTkButton(
-                action_frame,
-                text="Open Account",
-                command=lambda: self.open_account(account["url"]),
-                fg_color="blue",
-                hover_color="darkblue"
-            )
-            open_button.pack(fill="x", pady=5)
-        
-        copy_button = ctk.CTkButton(
-            action_frame,
-            text="Copy Account Info",
-            command=lambda: self.copy_account_info(account)
-        )
-        copy_button.pack(fill="x", pady=5)
-        
-        delete_button = ctk.CTkButton(
-            action_frame,
-            text="Delete Account",
-            command=lambda: self.delete_account(account),
-            fg_color="red",
-            hover_color="darkred"
-        )
-        delete_button.pack(fill="x", pady=5)
-    
-    def open_account(self, url):
-        """Open the account URL in the default browser"""
-        try:
-            import webbrowser
-            webbrowser.open(url)
-        except Exception as e:
-            self.show_message("Error", f"Could not open URL: {str(e)}")
-    
-    def add_detail_field(self, parent, label_text, value, is_password=False, is_url=False):
-        field_frame = ctk.CTkFrame(parent)
-        field_frame.pack(fill="x", padx=10, pady=5)
-        
-        label = ctk.CTkLabel(
-            field_frame, 
-            text=f"{label_text}:",
-            font=ctk.CTkFont(weight="bold")
-        )
-        label.pack(anchor="w", padx=5, pady=2)
-        
-        if is_password:
-            # For password, add a reveal button
-            value_frame = ctk.CTkFrame(field_frame)
-            value_frame.pack(fill="x", padx=5, pady=2)
-            
-            hidden_value = "*" * len(value)
-            password_var = tk.StringVar(value=hidden_value)
-            
-            password_label = ctk.CTkLabel(
-                value_frame,
-                textvariable=password_var,
-                font=ctk.CTkFont(family="Consolas")
-            )
-            password_label.pack(side="left", anchor="w", padx=5)
-            
-            is_revealed = [False]  # Use list for mutable state in closure
-            
-            def toggle_reveal():
-                is_revealed[0] = not is_revealed[0]
-                if is_revealed[0]:
-                    password_var.set(value)
-                    reveal_button.configure(text="Hide")
-                else:
-                    password_var.set(hidden_value)
-                    reveal_button.configure(text="Show")
-            
-            reveal_button = ctk.CTkButton(
-                value_frame,
-                text="Show",
-                command=toggle_reveal,
-                width=60,
-                height=25
-            )
-            reveal_button.pack(side="right", padx=5)
-            
-        elif is_url:
-            # For URL, make it clickable
-            url_label = ctk.CTkLabel(
-                field_frame,
-                text=value[:30] + "..." if len(value) > 30 else value,
-                text_color="blue",
-                cursor="hand2"
-            )
-            url_label.pack(anchor="w", padx=5, pady=2)
-            
-            def open_url(event):
-                import webbrowser
-                webbrowser.open(value)
-                
-            url_label.bind("<Button-1>", open_url)
-        else:
-            # Regular value
-            value_label = ctk.CTkLabel(
-                field_frame,
-                text=value,
-                font=ctk.CTkFont(family="Consolas"),
-                wraplength=250
-            )
-            value_label.pack(anchor="w", padx=5, pady=2)
-            
-        # Add copy button for all fields
-        copy_button = ctk.CTkButton(
-            field_frame,
-            text="Copy",
-            command=lambda: self.copy_to_clipboard(value),
-            width=60,
-            height=25
-        )
-        copy_button.pack(anchor="e", padx=5, pady=2)
-    
-    def copy_to_clipboard(self, text):
-        self.clipboard_clear()
-        self.clipboard_append(text)
-        self.show_message("Copied", "Value copied to clipboard!")
-    
-    def copy_account_info(self, account):
-        """Copy account information in a specific format"""
-        info = f"Name: {account['first_name']} {account['last_name']}\n"
-        info += f"Email: {account['email']}\n"
-        info += f"Password: {account['password']}\n"
-        if "url" in account and account["url"]:
-            info += f"URL: {account['url']}\n"
-        
-        self.clipboard_clear()
-        self.clipboard_append(info)
-        self.show_message("Copied", "Account information copied to clipboard!")
-    
-    def delete_account(self, account):
-        confirm = tk.messagebox.askyesno(
-            "Confirm Delete", 
-            f"Are you sure you want to delete the account for {account['email']}?"
-        )
-        
-        if confirm:
-            # Find and remove the account
-            accounts = self.account_info.accounts["accounts"]
-            for i, acc in enumerate(accounts):
-                if acc["email"] == account["email"] and acc["created_at"] == account["created_at"]:
-                    # Update statistics
-                    if acc["status"] == "Success":
-                        self.account_info.accounts["statistics"]["success"] -= 1
-                    else:
-                        self.account_info.accounts["statistics"]["failed"] -= 1
-                    
-                    # Remove the account
-                    accounts.pop(i)
-                    break
-                    
-            # Save changes
-            self.account_info.save_accounts()
-            
-            # Refresh UI
-            self.refresh_dashboard()
-            self.refresh_visualization()
-            self.close_account_details()
-            
-            self.show_message("Account Deleted", "The account has been deleted.")
-    
-    def close_account_details(self):
-        # Hide the detail frame
-        self.detail_frame.pack_forget()
-        self.account_detail = None
-        
-    def setup_visualization_tab(self):
-        # Create frame for visualizations
-        self.viz_frame = ctk.CTkFrame(self.tab_visualization)
-        self.viz_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Add title
-        viz_title = ctk.CTkLabel(
-            self.viz_frame, 
-            text="Analytics", 
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        viz_title.pack(pady=10)
-        
-        # Add refresh button
-        refresh_viz_button = ctk.CTkButton(
-            self.viz_frame,
-            text="Refresh Charts",
-            command=self.refresh_visualization
-        )
-        refresh_viz_button.pack(pady=10)
-        
-        # Create frame for charts
-        self.charts_frame = ctk.CTkFrame(self.viz_frame)
-        self.charts_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Setup initial visualization
-        self.refresh_visualization()
-        
-    def refresh_visualization(self):
-        # Clear existing widgets
-        for widget in self.charts_frame.winfo_children():
-            widget.destroy()
-            
-        # Get statistics
-        stats = self.account_info.get_statistics()
-        accounts = self.account_info.get_accounts()
-        
-        # Create left and right frames for charts
-        left_chart = ctk.CTkFrame(self.charts_frame)
-        left_chart.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-        
-        right_chart = ctk.CTkFrame(self.charts_frame)
-        right_chart.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        
-        # Create figure for left chart - Success vs Failed
-        fig1 = plt.Figure(figsize=(5, 4), dpi=100)
-        ax1 = fig1.add_subplot(111)
-        
-        # Data for pie chart
-        labels = ['Success', 'Failed']
-        sizes = [stats["success"], stats["failed"]]
-        colors = ['#4CAF50', '#F44336']
-        
-        # Create pie chart
-        if sum(sizes) > 0:  # Only create chart if we have data
-            ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-            ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
-            ax1.set_title('Success Rate')
-            
-            # Create canvas for pie chart
-            canvas1 = FigureCanvasTkAgg(fig1, left_chart)
-            canvas1.draw()
-            canvas1.get_tk_widget().pack(fill="both", expand=True)
-        else:
-            # No data message
-            no_data = ctk.CTkLabel(
-                left_chart, 
-                text="No data available yet.\nCreate accounts to see statistics.",
-                font=ctk.CTkFont(size=14)
-            )
-            no_data.pack(pady=50)
-        
-        # Create figure for right chart - Timeline of account creation
-        if len(accounts) > 0:
-            fig2 = plt.Figure(figsize=(5, 4), dpi=100)
-            ax2 = fig2.add_subplot(111)
-            
-            # Extract dates and statuses
-            dates = [datetime.strptime(acc["created_at"], "%Y-%m-%d %H:%M:%S") for acc in accounts]
-            statuses = [1 if acc["status"] == "Success" else 0 for acc in accounts]
-            
-            # Create cumulative sum line
-            cumulative = [sum(statuses[:i+1]) for i in range(len(statuses))]
-            
-            # Plot
-            ax2.plot(dates, cumulative, marker='o', linestyle='-', color='blue')
-            ax2.set_title('Accounts Created Over Time')
-            ax2.set_xlabel('Date')
-            ax2.set_ylabel('Total Successful Accounts')
-            
-            # Format dates properly
-            fig2.autofmt_xdate()
-            
-            # Create canvas for line chart
-            canvas2 = FigureCanvasTkAgg(fig2, right_chart)
-            canvas2.draw()
-            canvas2.get_tk_widget().pack(fill="both", expand=True)
-        else:
-            # No data message
-            no_data = ctk.CTkLabel(
-                right_chart, 
-                text="No data available yet.\nCreate accounts to see timeline.",
-                font=ctk.CTkFont(size=14)
-            )
-            no_data.pack(pady=50)
-            
-    def setup_scheduler_tab(self):
-        # Create scheduler frame
-        self.scheduler_frame = ctk.CTkFrame(self.tab_scheduler)
-        self.scheduler_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Add title
-        scheduler_title = ctk.CTkLabel(
-            self.scheduler_frame, 
-            text="Automation Scheduler", 
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        scheduler_title.pack(pady=10)
-        
-        # Create split view
-        scheduler_split = ctk.CTkFrame(self.scheduler_frame)
-        scheduler_split.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Left side - Scheduled tasks
-        tasks_frame = ctk.CTkFrame(scheduler_split)
-        tasks_frame.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=0)
-        
-        tasks_label = ctk.CTkLabel(
-            tasks_frame, 
-            text="Scheduled Tasks", 
-            font=ctk.CTkFont(size=16, weight="bold")
-        )
-        tasks_label.pack(pady=10)
-        
-        # Add task list with headers
-        headers_frame = ctk.CTkFrame(tasks_frame)
-        headers_frame.pack(fill="x", padx=10, pady=5)
-        
-        headers = ["Task Name", "Schedule", "Browser", "Status", "Actions"]
-        for i, header in enumerate(headers):
-            lbl = ctk.CTkLabel(headers_frame, text=header, font=ctk.CTkFont(weight="bold"))
-            lbl.grid(row=0, column=i, padx=5, pady=5, sticky="w")
-            headers_frame.grid_columnconfigure(i, weight=1)
-        
-        # Create scrollable frame for tasks
-        self.tasks_scroll = ctk.CTkScrollableFrame(tasks_frame)
-        self.tasks_scroll.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # No scheduled tasks message
-        no_tasks_label = ctk.CTkLabel(
-            self.tasks_scroll, 
-            text="No scheduled tasks. Create one using the form on the right.", 
-            font=ctk.CTkFont(size=12),
-            text_color="gray"
-        )
-        no_tasks_label.pack(pady=50)
-        
-        # Right side - Add new schedule
-        schedule_form = ctk.CTkFrame(scheduler_split)
-        schedule_form.pack(side="right", fill="both", expand=False, padx=(5, 0), pady=0, ipadx=10, ipady=10)
-        schedule_form.configure(width=300)
-        
-        form_label = ctk.CTkLabel(
-            schedule_form, 
-            text="Create New Schedule", 
-            font=ctk.CTkFont(size=16, weight="bold")
-        )
-        form_label.pack(pady=10)
-        
-        # Task name
-        name_frame = ctk.CTkFrame(schedule_form)
-        name_frame.pack(fill="x", padx=10, pady=5)
-        
-        name_label = ctk.CTkLabel(name_frame, text="Task Name:")
-        name_label.pack(anchor="w", padx=10, pady=5)
-        
-        self.schedule_name = tk.StringVar(value="")
-        name_entry = ctk.CTkEntry(
-            name_frame,
-            textvariable=self.schedule_name,
-            placeholder_text="Daily Account Creation"
-        )
-        name_entry.pack(fill="x", padx=10, pady=5)
-        
-        # Schedule type
-        type_frame = ctk.CTkFrame(schedule_form)
-        type_frame.pack(fill="x", padx=10, pady=5)
-        
-        type_label = ctk.CTkLabel(type_frame, text="Schedule Type:")
-        type_label.pack(anchor="w", padx=10, pady=5)
-        
-        self.schedule_type = tk.StringVar(value="once")
-        
-        types_frame = ctk.CTkFrame(type_frame)
-        types_frame.pack(fill="x", padx=10, pady=5)
-        
-        once_radio = ctk.CTkRadioButton(
-            types_frame, 
-            text="Run Once", 
-            variable=self.schedule_type, 
-            value="once",
-            command=self.update_schedule_form
-        )
-        once_radio.pack(anchor="w", padx=10, pady=5)
-        
-        daily_radio = ctk.CTkRadioButton(
-            types_frame, 
-            text="Run Daily", 
-            variable=self.schedule_type, 
-            value="daily",
-            command=self.update_schedule_form
-        )
-        daily_radio.pack(anchor="w", padx=10, pady=5)
-        
-        weekly_radio = ctk.CTkRadioButton(
-            types_frame, 
-            text="Run Weekly", 
-            variable=self.schedule_type, 
-            value="weekly",
-            command=self.update_schedule_form
-        )
-        weekly_radio.pack(anchor="w", padx=10, pady=5)
-        
-        # Date selection for "Run Once"
-        self.date_frame = ctk.CTkFrame(schedule_form)
-        self.date_frame.pack(fill="x", padx=10, pady=5)
-        
-        date_label = ctk.CTkLabel(self.date_frame, text="Date:")
-        date_label.pack(anchor="w", padx=10, pady=5)
-        
-        # Create a simple date selector
-        date_select_frame = ctk.CTkFrame(self.date_frame)
-        date_select_frame.pack(fill="x", padx=10, pady=5)
-        
-        # Get current date
-        current_date = datetime.now()
-        
-        # Year selector
-        self.year_var = tk.StringVar(value=str(current_date.year))
-        year_label = ctk.CTkLabel(date_select_frame, text="Year:")
-        year_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        
-        years = [str(y) for y in range(current_date.year, current_date.year + 5)]
-        year_dropdown = ctk.CTkOptionMenu(
-            date_select_frame,
-            values=years,
-            variable=self.year_var
-        )
-        year_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
-        # Month selector
-        self.month_var = tk.StringVar(value=str(current_date.month))
-        month_label = ctk.CTkLabel(date_select_frame, text="Month:")
-        month_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        
-        months = [str(m) for m in range(1, 13)]
-        month_dropdown = ctk.CTkOptionMenu(
-            date_select_frame,
-            values=months,
-            variable=self.month_var
-        )
-        month_dropdown.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        
-        # Day selector
-        self.day_var = tk.StringVar(value=str(current_date.day))
-        day_label = ctk.CTkLabel(date_select_frame, text="Day:")
-        day_label.grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        
-        days = [str(d) for d in range(1, 32)]
-        day_dropdown = ctk.CTkOptionMenu(
-            date_select_frame,
-            values=days,
-            variable=self.day_var
-        )
-        day_dropdown.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        
-        # Set column weights for alignment
-        date_select_frame.grid_columnconfigure(0, weight=1)
-        date_select_frame.grid_columnconfigure(1, weight=3)
-        
-        # Weekly day selection for "Run Weekly"
-        self.weekly_frame = ctk.CTkFrame(schedule_form)
-        # Initially hidden
-        
-        weekly_label = ctk.CTkLabel(self.weekly_frame, text="Day of Week:")
-        weekly_label.pack(anchor="w", padx=10, pady=5)
-        
-        self.day_of_week = tk.StringVar(value="Monday")
-        days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        
-        weekly_dropdown = ctk.CTkOptionMenu(
-            self.weekly_frame,
-            values=days_of_week,
-            variable=self.day_of_week
-        )
-        weekly_dropdown.pack(fill="x", padx=10, pady=5)
-        
-        # Time selection for all types
-        time_frame = ctk.CTkFrame(schedule_form)
-        time_frame.pack(fill="x", padx=10, pady=5)
-        
-        time_label = ctk.CTkLabel(time_frame, text="Time:")
-        time_label.pack(anchor="w", padx=10, pady=5)
-        
-        time_select_frame = ctk.CTkFrame(time_frame)
-        time_select_frame.pack(fill="x", padx=10, pady=5)
-        
-        # Hour selector
-        self.hour_var = tk.StringVar(value=str(current_date.hour))
-        hour_label = ctk.CTkLabel(time_select_frame, text="Hour:")
-        hour_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        
-        hours = [str(h).zfill(2) for h in range(24)]
-        hour_dropdown = ctk.CTkOptionMenu(
-            time_select_frame,
-            values=hours,
-            variable=self.hour_var
-        )
-        hour_dropdown.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
-        # Minute selector
-        self.minute_var = tk.StringVar(value=str(current_date.minute))
-        minute_label = ctk.CTkLabel(time_select_frame, text="Minute:")
-        minute_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        
-        minutes = [str(m).zfill(2) for m in range(60)]
-        minute_dropdown = ctk.CTkOptionMenu(
-            time_select_frame,
-            values=minutes,
-            variable=self.minute_var
-        )
-        minute_dropdown.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        
-        # Set column weights for alignment
-        time_select_frame.grid_columnconfigure(0, weight=1)
-        time_select_frame.grid_columnconfigure(1, weight=3)
-        
-        # Browser selection
-        browser_frame = ctk.CTkFrame(schedule_form)
-        browser_frame.pack(fill="x", padx=10, pady=5)
-        
-        browser_label = ctk.CTkLabel(browser_frame, text="Browser:")
-        browser_label.pack(anchor="w", padx=10, pady=5)
-        
-        self.schedule_browser = tk.StringVar(value=list(self.browsers.keys())[0] if self.browsers else "chrome")
-        
-        browser_dropdown = ctk.CTkOptionMenu(
-            browser_frame,
-            values=list(browser.capitalize() for browser in self.browsers.keys()),
-            variable=self.schedule_browser
-        )
-        browser_dropdown.pack(fill="x", padx=10, pady=5)
-        
-        # Number of accounts
-        accounts_frame = ctk.CTkFrame(schedule_form)
-        accounts_frame.pack(fill="x", padx=10, pady=5)
-        
-        accounts_label = ctk.CTkLabel(accounts_frame, text="Number of Accounts:")
-        accounts_label.pack(anchor="w", padx=10, pady=5)
-        
-        self.schedule_accounts = tk.IntVar(value=1)
-        accounts_slider_label = ctk.CTkLabel(
-            accounts_frame, 
-            text=f"Accounts: {self.schedule_accounts.get()}"
-        )
-        accounts_slider_label.pack(anchor="w", padx=10, pady=5)
-        
-        def update_accounts_label(value):
-            self.schedule_accounts.set(int(value))
-            accounts_slider_label.configure(text=f"Accounts: {self.schedule_accounts.get()}")
-        
-        accounts_slider = ctk.CTkSlider(
-            accounts_frame,
-            from_=1,
-            to=10,
-            number_of_steps=9,
-            command=update_accounts_label
-        )
-        accounts_slider.set(1)
-        accounts_slider.pack(fill="x", padx=10, pady=5)
-        
-        # Create button
-        create_button = ctk.CTkButton(
-            schedule_form,
-            text="Create Schedule",
-            command=self.create_schedule,
-            fg_color="green",
-            hover_color="darkgreen"
-        )
-        create_button.pack(fill="x", padx=10, pady=20)
-        
-        # Initialize schedule form
-        self.update_schedule_form()
-        
-        # Initialize scheduled task store
-        self.scheduled_tasks = []
-        self.load_scheduled_tasks()
-    
-    def update_schedule_form(self):
-        schedule_type = self.schedule_type.get()
-        
-        # Show/hide frames based on schedule type
-        if schedule_type == "once":
-            self.date_frame.pack(fill="x", padx=10, pady=5)
-            if self.weekly_frame.winfo_manager():
-                self.weekly_frame.pack_forget()
-        elif schedule_type == "weekly":
-            if not self.weekly_frame.winfo_manager():
-                self.weekly_frame.pack(fill="x", padx=10, pady=5)
-                # Insert before time_frame
-                self.weekly_frame.pack(after=self.date_frame)
-            self.date_frame.pack_forget()
-        else:  # daily
-            self.date_frame.pack_forget()
-            if self.weekly_frame.winfo_manager():
-                self.weekly_frame.pack_forget()
-    
-    def create_schedule(self):
-        # Validate form
-        if not self.schedule_name.get():
-            self.show_message("Error", "Please enter a task name")
-            return
-        
-        # Get schedule time
-        hour = int(self.hour_var.get())
-        minute = int(self.minute_var.get())
-        
-        schedule_type = self.schedule_type.get()
-        schedule_time = None
-        
-        if schedule_type == "once":
-            # Get date components
-            year = int(self.year_var.get())
-            month = int(self.month_var.get())
-            day = int(self.day_var.get())
-            
-            try:
-                schedule_time = datetime(year, month, day, hour, minute)
-                if schedule_time < datetime.now():
-                    self.show_message("Error", "Scheduled time must be in the future")
-                    return
-            except ValueError:
-                self.show_message("Error", "Invalid date. Please check your selection.")
-                return
-                
-        elif schedule_type == "weekly":
-            day_of_week = self.day_of_week.get()
-            # Store the day name for display
-            schedule_time = day_of_week
-            
-        # Default for daily is None
-        
-        # Create task object
-        task = {
-            "name": self.schedule_name.get(),
-            "type": schedule_type,
-            "time": schedule_time,
-            "hour": hour,
-            "minute": minute,
-            "browser": self.schedule_browser.get(),
-            "accounts": self.schedule_accounts.get(),
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "status": "Active"
-        }
-        
-        # Add to list and save
-        self.scheduled_tasks.append(task)
-        self.save_scheduled_tasks()
-        
-        # Refresh task list
-        self.refresh_task_list()
-        
-        # Show confirmation
-        self.show_message("Schedule Created", f"Task '{task['name']}' has been scheduled")
-        
-        # Reset form
-        self.schedule_name.set("")
-    
-    def save_scheduled_tasks(self):
-        # Save scheduled tasks to file
-        file_path = os.path.join(os.path.expanduser("~"), "turbolearn_schedules.json")
-        
-        try:
-            with open(file_path, "w") as f:
-                json.dump({"tasks": self.scheduled_tasks}, f)
-        except Exception as e:
-            print(f"Error saving scheduled tasks: {str(e)}")
-    
-    def load_scheduled_tasks(self):
-        # Load scheduled tasks from file
-        file_path = os.path.join(os.path.expanduser("~"), "turbolearn_schedules.json")
-        
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r") as f:
-                    data = json.load(f)
-                    self.scheduled_tasks = data.get("tasks", [])
-                    self.refresh_task_list()
-            except Exception as e:
-                print(f"Error loading scheduled tasks: {str(e)}")
-                self.scheduled_tasks = []
-        else:
-            self.scheduled_tasks = []
-    
-    def refresh_task_list(self):
-        # Clear existing tasks
-        for widget in self.tasks_scroll.winfo_children():
-            widget.destroy()
-            
-        if not self.scheduled_tasks:
-            # No scheduled tasks message
-            no_tasks_label = ctk.CTkLabel(
-                self.tasks_scroll, 
-                text="No scheduled tasks. Create one using the form on the right.", 
-                font=ctk.CTkFont(size=12),
-                text_color="gray"
-            )
-            no_tasks_label.pack(pady=50)
-            return
-            
-        # Add each task to the list
-        for i, task in enumerate(self.scheduled_tasks):
-            task_frame = ctk.CTkFrame(self.tasks_scroll)
-            task_frame.pack(fill="x", padx=5, pady=5)
-            
-            # Format schedule text based on type
-            if task["type"] == "once":
-                if isinstance(task["time"], str):
-                    # Convert stored string to datetime if needed
-                    try:
-                        schedule_datetime = datetime.strptime(task["time"], "%Y-%m-%d %H:%M:%S")
-                        schedule_text = schedule_datetime.strftime("%Y-%m-%d %H:%M")
-                    except:
-                        schedule_text = f"{task['hour']}:{task['minute']}"
-                else:
-                    schedule_text = "One-time"
-            elif task["type"] == "weekly":
-                schedule_text = f"{task['time']} at {task['hour']}:{str(task['minute']).zfill(2)}"
-            else:  # daily
-                schedule_text = f"Daily at {task['hour']}:{str(task['minute']).zfill(2)}"
-                
-            # Task name
-            name_label = ctk.CTkLabel(task_frame, text=task["name"], font=ctk.CTkFont(weight="bold"))
-            name_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-            
-            # Schedule details
-            schedule_label = ctk.CTkLabel(task_frame, text=schedule_text)
-            schedule_label.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-            
-            # Browser
-            browser_label = ctk.CTkLabel(task_frame, text=task["browser"])
-            browser_label.grid(row=0, column=2, padx=5, pady=5, sticky="w")
-            
-            # Status
-            status_label = ctk.CTkLabel(
-                task_frame, 
-                text=task["status"],
-                text_color="green" if task["status"] == "Active" else "red"
-            )
-            status_label.grid(row=0, column=3, padx=5, pady=5, sticky="w")
-            
-            # Actions
-            actions_frame = ctk.CTkFrame(task_frame)
-            actions_frame.grid(row=0, column=4, padx=5, pady=5, sticky="e")
-            
-            # Run now button
-            run_button = ctk.CTkButton(
-                actions_frame,
-                text="Run",
-                command=lambda t=task: self.run_scheduled_task(t),
-                width=60,
-                height=25
-            )
-            run_button.pack(side="left", padx=5)
-            
-            # Delete button
-            delete_button = ctk.CTkButton(
-                actions_frame,
-                text="Delete",
-                command=lambda t=task: self.delete_scheduled_task(t),
-                fg_color="red",
-                hover_color="darkred",
-                width=60,
-                height=25
-            )
-            delete_button.pack(side="left", padx=5)
-            
-            # Configure grid
-            task_frame.grid_columnconfigure(0, weight=2)  # Name gets more space
-            task_frame.grid_columnconfigure(1, weight=2)  # Schedule gets more space
-            task_frame.grid_columnconfigure(2, weight=1)
-            task_frame.grid_columnconfigure(3, weight=1)
-            task_frame.grid_columnconfigure(4, weight=1)
-    
-    def run_scheduled_task(self, task):
-        # Check if already running
-        if self.is_running:
-            self.show_message("Already Running", "A task is already running. Please wait for it to complete.")
-            return
-            
-        # Switch to automation tab
-        self.tabview.set("Automation")
-        
-        # Set up parameters for the task
-        self.selected_browser.set(task["browser"].lower())
-        self.batch_mode.set(task["accounts"] > 1)
-        self.batch_count.set(task["accounts"])
-        
-        # Start automation
-        self.start_automation()
-    
-    def delete_scheduled_task(self, task):
-        confirm = tk.messagebox.askyesno(
-            "Confirm Delete", 
-            f"Are you sure you want to delete the scheduled task '{task['name']}'?"
-        )
-        
-        if confirm:
-            self.scheduled_tasks.remove(task)
-            self.save_scheduled_tasks()
-            self.refresh_task_list()
-            
-    def check_scheduled_tasks(self):
-        """Check if any scheduled tasks need to be run and run them if needed."""
-        now = datetime.now()
-        current_time = now.time()
-        current_weekday = now.strftime("%A")  # Monday, Tuesday, etc.
-        
-        for task in self.scheduled_tasks:
-            if task["status"] != "Active":
-                continue
-                
-            run_task = False
-            
-            if task["type"] == "once":
-                # For one-time tasks, check if it's time and hasn't run before
-                if isinstance(task["time"], str):
-                    try:
-                        task_time = datetime.strptime(task["time"], "%Y-%m-%d %H:%M:%S")
-                        if now >= task_time:
-                            run_task = True
-                            # Mark as complete after running
-                            task["status"] = "Completed"
-                    except:
-                        pass
-            elif task["type"] == "daily":
-                # For daily tasks, check if the current hour and minute match
-                task_hour = int(task["hour"])
-                task_minute = int(task["minute"])
-                
-                if current_time.hour == task_hour and current_time.minute == task_minute:
-                    run_task = True
-            elif task["type"] == "weekly":
-                # For weekly tasks, check if it's the right day and time
-                task_day = task["time"]
-                task_hour = int(task["hour"])
-                task_minute = int(task["minute"])
-                
-                if current_weekday == task_day and current_time.hour == task_hour and current_time.minute == task_minute:
-                    run_task = True
-            
-            if run_task and not self.is_running:
-                print(f"Running scheduled task: {task['name']}")
-                self.run_scheduled_task(task)
-                break  # Only run one task at a time
-        
-        # Check again in 1 minute
-        self.after(60000, self.check_scheduled_tasks)
-
     def setup_settings_tab(self):
         """Setup the settings tab"""
         # Create frame for settings
@@ -2886,6 +2254,386 @@ class TurboLearnGUI(ctk.CTk):
         except Exception as e:
             print(f"Error creating icon: {str(e)}")
             return None
+
+    def export_accounts_to_csv(self):
+        """Export accounts to CSV file"""
+        try:
+            import csv
+            from tkinter import filedialog
+            
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+                title="Export Account Data as CSV"
+            )
+            
+            if not file_path:
+                return
+                
+            accounts = self.account_info.get_accounts()
+                
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                # Define CSV fields
+                fieldnames = ["first_name", "last_name", "email", "password", "url", "created_at", "status"]
+                
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                
+                # Write account data
+                for account in accounts:
+                    # Create a filtered dict with only the fields we want
+                    row = {field: account.get(field, "") for field in fieldnames}
+                    writer.writerow(row)
+                
+            self.show_message("Export Successful", f"{len(accounts)} accounts exported to CSV successfully.")
+        except Exception as e:
+            self.show_message("Export Failed", f"Error exporting data: {str(e)}")
+            print(f"CSV export error: {str(e)}")
+            
+    def create_quick_access_bar(self):
+        """Create a quick access bar at the bottom of the dashboard"""
+        quick_bar = ctk.CTkFrame(self.dashboard_frame)
+        quick_bar.pack(fill="x", padx=10, pady=5, side="bottom")
+        
+        # Add quick buttons
+        buttons = [
+            ("New Account", lambda: self.tabview.set("Automation"), "➕"),
+            ("Export CSV", lambda: self.export_accounts_to_csv(), "📄"),
+            ("Check Updates", self.check_for_updates, "🔄"),
+            ("Test Proxy", self.show_proxy_tester, "🌐")
+        ]
+        
+        for text, command, icon in buttons:
+            btn = ctk.CTkButton(
+                quick_bar,
+                text=f"{icon} {text}",
+                command=command,
+                height=30
+            )
+            btn.pack(side="left", padx=5, pady=5, fill="x", expand=True)
+            
+    def check_for_updates(self):
+        """Check GitHub for updates to the application"""
+        try:
+            import urllib.request
+            import json
+            
+            # Create status window
+            status_window = ctk.CTkToplevel(self)
+            status_window.title("Update Check")
+            status_window.geometry("400x200")
+            status_window.transient(self)
+            status_window.grab_set()
+            
+            # Add loading indicator
+            status_label = ctk.CTkLabel(
+                status_window,
+                text="Checking for updates...",
+                font=ctk.CTkFont(size=16)
+            )
+            status_label.pack(pady=20)
+            
+            progress = ctk.CTkProgressBar(status_window)
+            progress.pack(padx=20, pady=10, fill="x")
+            progress.start()
+            
+            # Function to check for updates in background
+            def check_update_thread():
+                try:
+                    # Current version (example: 1.0.0)
+                    current_version = "1.0.0"
+                    
+                    # GitHub API URL for latest release
+                    url = "https://api.github.com/repos/Yetemgeta-B/Turbolearn/releases/latest"
+                    
+                    # Set up request with user agent
+                    req = urllib.request.Request(
+                        url,
+                        headers={'User-Agent': 'TurboLearn Update Checker'}
+                    )
+                    
+                    # Make the request
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        data = json.loads(response.read().decode('utf-8'))
+                        
+                    # Get the latest version (remove 'v' prefix if present)
+                    latest_version = data['tag_name'].lstrip('v')
+                    release_notes = data['body']
+                    download_url = data['html_url']
+                    
+                    # Compare versions
+                    if latest_version > current_version:
+                        # Update the UI with the results
+                        status_window.after(0, lambda: update_ui(
+                            f"New version available: {latest_version}",
+                            True,
+                            latest_version,
+                            release_notes,
+                            download_url
+                        ))
+                    else:
+                        # No update needed
+                        status_window.after(0, lambda: update_ui(
+                            f"You have the latest version: {current_version}",
+                            False
+                        ))
+                        
+                except Exception as e:
+                    # Handle errors
+                    status_window.after(0, lambda: update_ui(
+                        f"Error checking for updates: {str(e)}",
+                        False
+                    ))
+            
+            # Function to update the UI with results
+            def update_ui(message, update_available, version=None, notes=None, url=None):
+                # Stop progress bar and update status
+                progress.stop()
+                status_label.configure(text=message)
+                
+                if update_available:
+                    # Show update details
+                    notes_frame = ctk.CTkScrollableFrame(status_window, height=80)
+                    notes_frame.pack(padx=20, pady=10, fill="x")
+                    
+                    notes_label = ctk.CTkLabel(
+                        notes_frame,
+                        text=notes,
+                        wraplength=350,
+                        justify="left"
+                    )
+                    notes_label.pack(padx=10, pady=10, fill="both")
+                    
+                    # Add download button
+                    download_button = ctk.CTkButton(
+                        status_window,
+                        text="Download Update",
+                        command=lambda: self.open_url(url)
+                    )
+                    download_button.pack(pady=10)
+                else:
+                    # Add close button
+                    close_button = ctk.CTkButton(
+                        status_window,
+                        text="Close",
+                        command=status_window.destroy
+                    )
+                    close_button.pack(pady=20)
+            
+            # Start the check in a separate thread
+            import threading
+            update_thread = threading.Thread(target=check_update_thread)
+            update_thread.daemon = True
+            update_thread.start()
+            
+        except Exception as e:
+            self.show_message("Error", f"Failed to check for updates: {str(e)}")
+            
+    def show_proxy_tester(self):
+        """Show proxy testing dialog"""
+        proxy_window = ctk.CTkToplevel(self)
+        proxy_window.title("Proxy Tester")
+        proxy_window.geometry("500x400")
+        proxy_window.transient(self)
+        proxy_window.grab_set()
+        
+        # Header
+        header_label = ctk.CTkLabel(
+            proxy_window,
+            text="Test Proxy Connection",
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        header_label.pack(pady=10)
+        
+        # Proxy input
+        input_frame = ctk.CTkFrame(proxy_window)
+        input_frame.pack(padx=20, pady=10, fill="x")
+        
+        proxy_label = ctk.CTkLabel(input_frame, text="Proxy URL:")
+        proxy_label.pack(side="left", padx=10)
+        
+        proxy_var = tk.StringVar()
+        proxy_entry = ctk.CTkEntry(input_frame, textvariable=proxy_var, width=300)
+        proxy_entry.pack(side="left", padx=10, fill="x", expand=True)
+        
+        # Format helper text
+        format_label = ctk.CTkLabel(
+            proxy_window,
+            text="Format: http://username:password@host:port or http://host:port",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        format_label.pack(pady=(0, 10))
+        
+        # Test sites
+        sites_frame = ctk.CTkFrame(proxy_window)
+        sites_frame.pack(padx=20, pady=10, fill="x")
+        
+        sites_label = ctk.CTkLabel(sites_frame, text="Test Sites:")
+        sites_label.pack(anchor="w", padx=10, pady=5)
+        
+        test_sites = [
+            ("Google", "https://www.google.com"),
+            ("Cloudflare", "https://www.cloudflare.com"),
+            ("GitHub", "https://api.github.com"),
+            ("Custom URL", "")
+        ]
+        
+        site_var = tk.StringVar(value=test_sites[0][1])
+        
+        for i, (name, url) in enumerate(test_sites):
+            site_rb = ctk.CTkRadioButton(
+                sites_frame,
+                text=name,
+                variable=site_var,
+                value=url,
+                command=lambda: custom_entry.configure(state="normal" if site_var.get() == "" else "disabled")
+            )
+            site_rb.pack(anchor="w", padx=20, pady=2)
+        
+        # Custom URL entry
+        custom_frame = ctk.CTkFrame(sites_frame)
+        custom_frame.pack(padx=20, pady=5, fill="x")
+        
+        custom_var = tk.StringVar()
+        custom_entry = ctk.CTkEntry(custom_frame, textvariable=custom_var, placeholder_text="Enter custom URL", state="disabled")
+        custom_entry.pack(fill="x")
+        
+        # Results frame
+        results_frame = ctk.CTkFrame(proxy_window)
+        results_frame.pack(padx=20, pady=10, fill="both", expand=True)
+        
+        results_label = ctk.CTkLabel(
+            results_frame,
+            text="Test Results:",
+            font=ctk.CTkFont(weight="bold")
+        )
+        results_label.pack(anchor="w", padx=10, pady=5)
+        
+        results_text = ctk.CTkTextbox(results_frame)
+        results_text.pack(padx=10, pady=5, fill="both", expand=True)
+        results_text.configure(state="disabled")
+        
+        # Test button
+        test_button = ctk.CTkButton(
+            proxy_window,
+            text="Test Connection",
+            command=lambda: self.test_proxy_connection(
+                proxy_var.get(),
+                site_var.get() if site_var.get() != "" else custom_var.get(),
+                results_text
+            )
+        )
+        test_button.pack(pady=10)
+        
+    def test_proxy_connection(self, proxy_url, test_url, results_text):
+        """Test a proxy connection to a specified URL"""
+        if not proxy_url:
+            self.show_message("Error", "Please enter a proxy URL")
+            return
+            
+        if not test_url:
+            self.show_message("Error", "Please enter a test URL")
+            return
+            
+        # Enable text widget for writing results
+        results_text.configure(state="normal")
+        results_text.delete("0.0", "end")
+        results_text.insert("0.0", f"Testing proxy: {proxy_url}\nTarget: {test_url}\n\n")
+        
+        # Run test in background thread
+        def test_thread():
+            try:
+                import requests
+                import time
+                
+                start_time = time.time()
+                
+                # Set up proxy
+                proxies = {
+                    "http": proxy_url,
+                    "https": proxy_url
+                }
+                
+                # Make the request with a timeout
+                response = requests.get(test_url, proxies=proxies, timeout=10)
+                
+                # Calculate time
+                elapsed_time = time.time() - start_time
+                
+                # Show results
+                if response.status_code == 200:
+                    results = (
+                        f"✅ Success! Connected in {elapsed_time:.2f} seconds\n\n"
+                        f"Status Code: {response.status_code}\n"
+                        f"Response Size: {len(response.content)} bytes\n\n"
+                        f"Your IP as seen by server: "
+                    )
+                    
+                    # Try to get the IP address
+                    try:
+                        ip_response = requests.get("https://api.ipify.org", proxies=proxies, timeout=5)
+                        results += ip_response.text
+                    except:
+                        results += "Could not determine"
+                        
+                else:
+                    results = (
+                        f"⚠️ Warning: Got response code {response.status_code} in {elapsed_time:.2f} seconds\n\n"
+                        f"This might indicate an issue with the proxy or the target site.\n"
+                        f"Response Size: {len(response.content)} bytes"
+                    )
+                    
+                # Update UI in main thread
+                self.after(0, lambda: update_results(results, "success" if response.status_code == 200 else "warning"))
+                
+            except Exception as e:
+                # Handle error
+                error_message = (
+                    f"❌ Error: Could not connect using the proxy\n\n"
+                    f"Error details: {str(e)}\n\n"
+                    f"Possible causes:\n"
+                    f"- Incorrect proxy format\n"
+                    f"- Proxy server is down or unreachable\n"
+                    f"- Authentication required but not provided\n"
+                    f"- Network connectivity issues"
+                )
+                
+                # Update UI in main thread
+                self.after(0, lambda: update_results(error_message, "error"))
+        
+        # Function to update results in the UI thread
+        def update_results(message, status):
+            # Add colored status indicator
+            if status == "success":
+                results_text.insert("end", message, ("success",))
+                results_text.tag_configure("success", foreground="green")
+            elif status == "warning":
+                results_text.insert("end", message, ("warning",))
+                results_text.tag_configure("warning", foreground="orange")
+            else:
+                results_text.insert("end", message, ("error",))
+                results_text.tag_configure("error", foreground="red")
+                
+            results_text.configure(state="disabled")
+        
+        # Start the test thread
+        import threading
+        test_thread = threading.Thread(target=test_thread)
+        test_thread.daemon = True
+        test_thread.start()
+        
+        # Show initial message
+        results_text.insert("end", "Testing connection, please wait...\n\n")
+        results_text.configure(state="disabled")
+    
+    def open_url(self, url):
+        """Open any URL in the default browser"""
+        try:
+            import webbrowser
+            webbrowser.open(url)
+        except Exception as e:
+            self.show_message("Error", f"Could not open URL: {str(e)}")
 
 if __name__ == "__main__":
     # Check if matplotlib is installed
