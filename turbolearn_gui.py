@@ -1137,9 +1137,11 @@ class TurboLearnGUI(ctk.CTk):
         # Handle authentication if enabled
         if hasattr(self, 'dashboard_login_var') and not self.dashboard_login_var.get():
             # Skip authentication if disabled
+            self.is_authenticated = True  # Set authenticated since login is disabled
             self.create_dashboard_content()
         else:
             # Create authentication panel
+            self.is_authenticated = False  # Not authenticated until login
             self.create_auth_panel()
     
     def create_auth_panel(self):
@@ -2321,14 +2323,17 @@ class TurboLearnGUI(ctk.CTk):
         )
         dashboard_label.pack(anchor="w", padx=10, pady=10)
         
-        self.dashboard_login_var = tk.BooleanVar(value=True)
-        dashboard_toggle = ctk.CTkSwitch(
+        self.dashboard_login_var = tk.BooleanVar(value=False)
+        
+        login_switch = ctk.CTkSwitch(
             dashboard_frame,
-            text="Enable Dashboard Login",
+            text="",
             variable=self.dashboard_login_var,
-            command=self.toggle_dashboard_login
+            command=self.toggle_dashboard_login,
+            onvalue=True,
+            offvalue=False
         )
-        dashboard_toggle.pack(anchor="w", padx=20, pady=5)
+        login_switch.pack(side="left", padx=10, pady=10)
         
         # Shortcut section
         shortcut_frame = ctk.CTkFrame(settings_scroll)
