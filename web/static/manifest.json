@@ -1,0 +1,40 @@
+{
+    "name": "TurboLearn",
+    "short_name": "TurboLearn",
+    "description": "Advanced Learning Platform",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#3a7ebf",
+    "theme_color": "#3a7ebf",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "/static/img/logo-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/static/img/logo-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Start Automation",
+            "short_name": "Automate",
+            "description": "Start a new automation session",
+            "url": "/#automation",
+            "icons": [{ "src": "/static/img/automation-icon.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "View Accounts",
+            "short_name": "Accounts",
+            "description": "View created accounts",
+            "url": "/#accounts",
+            "icons": [{ "src": "/static/img/accounts-icon.png", "sizes": "192x192" }]
+        }
+    ]
+} 

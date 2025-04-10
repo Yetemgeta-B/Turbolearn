@@ -1,10 +1,10 @@
-# 🚀 TurboLearn Signup Automation
+# 🚀 TurboLearn Crack
 
 [![Python 3.6+](https://img.shields.io/badge/Python-3.6+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Selenium](https://img.shields.io/badge/Selenium-4.12.0-green.svg)](https://www.selenium.dev/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![Visitors](https://visitor-badge.laobi.icu/badge?page_id=turbolearn-automation)](https://github.com/your-username/TurboLearn)
+[![Visitors](https://visitor-badge.laobi.icu/badge?page_id=turbolearn-crack)](https://github.com/your-username/TurboLearnCrack)
 
 This tool automates the process of creating an account on TurboLearn.ai using Selenium for browser automation with an intuitive GUI interface.
 
@@ -120,4 +120,29 @@ Contributions, issues, and feature requests are welcome! Feel free to check the 
 
 ## 📜 License
 
-MIT License 
+MIT License
+
+## GitHub Releases
+
+TurboLearn Crack provides an easy way to create and distribute executable releases:
+
+1. Run the packaging script:
+   ```
+   python package_release.py
+   ```
+
+2. This will:
+   - Create a standalone executable using PyInstaller
+   - Package it with necessary files into a 'release' folder
+   - Provide instructions on uploading to GitHub Releases
+
+3. To publish the release on GitHub:
+   - Go to your GitHub repository
+   - Click on 'Releases' in the right sidebar
+   - Click 'Create a new release'
+   - Fill in the tag version (e.g., v1.0.0)
+   - Add a release title and description
+   - Upload the files from the 'release' directory
+   - Click 'Publish release'
+
+Users can then download and run the standalone executable without needing to install Python or dependencies. 

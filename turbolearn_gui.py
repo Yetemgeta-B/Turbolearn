@@ -1152,7 +1152,8 @@ class TurboLearnGUI(ctk.CTk):
             password_frame,
             textvariable=self.password_var,
             show="*",
-            width=200
+            width=200,
+            placeholder_text="turbolearn123"  # Default password placeholder
         )
         password_entry.pack(side="left")
         
