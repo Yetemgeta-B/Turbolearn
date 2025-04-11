@@ -8,7 +8,7 @@
 
 This tool automates the process of creating an account on TurboLearn.ai using Selenium for browser automation with an intuitive GUI interface.
 
-![TurboLearn GUI](https://img.shields.io/badge/GUI-CustomTkinter-blue)
+![TurboLearn GUI](https://img.shields.io/badge/GUI-CustomTkinter-orange)
 
 ## ✨ Features
 
@@ -18,8 +18,6 @@ This tool automates the process of creating an account on TurboLearn.ai using Se
 - 🕵️ **Private browsing mode** option for enhanced privacy
 - 🤖 **Headless mode** for faster, invisible automation
 - 📊 **Dashboard** to track and manage created accounts
-- 🔄 Copy account information with one click
-- 🚀 Open accounts directly in your browser
 - 📈 **Analytics** with visualizations of account creation success rates
 - 📅 **Scheduler** for automated account creation at specified times
 - 🔄 **Batch processing** to create multiple accounts in sequence
@@ -27,8 +25,6 @@ This tool automates the process of creating an account on TurboLearn.ai using Se
 - 💼 **WebDriver management** with included drivers for Chrome, Firefox, and Edge
 - 🛡️ **Error handling** with real-time console output
 - 🎨 **Themes and UI scaling** options
-- 🔐 **Password management** with secure storage
-- 🔗 **Desktop shortcut creation** with custom application icon
 
 ## 🛠️ Requirements
 
@@ -51,9 +47,10 @@ This tool automates the process of creating an account on TurboLearn.ai using Se
 pip install -r requirements.txt
 ```
 
-3. Additional packages for enhanced features:
-   - `pywin32` and `winshell` for Windows desktop shortcut creation
-   - `pillow` for icon generation
+3. Pre-downloaded WebDrivers are included in the `drivers` directory:
+   - Chrome WebDriver: `drivers/chrome/chromedriver-win64/chromedriver.exe`
+   - Firefox WebDriver: `drivers/firefox/geckodriver.exe`
+   - Edge WebDriver: `drivers/edge/msedgedriver.exe`
 
 ## 🚀 Usage
 
@@ -75,16 +72,9 @@ The application provides several tabs:
 
 - **Automation**: Control the account creation process with various options
 - **Dashboard**: View and manage created accounts
-  - Toggle dashboard login for privacy
-  - Copy account details and open accounts in your browser
 - **Analytics**: Visualize account creation success rates
 - **Scheduler**: Set up automated account creation tasks
 - **Settings**: Configure application appearance and manage data
-  - Change appearance mode (Light/Dark)
-  - Adjust UI scaling
-  - Toggle dashboard login
-  - Create desktop shortcut
-  - Change password
 
 ### ⌨️ Command-line options (CLI version)
 
@@ -109,13 +99,6 @@ python turbolearn_signup.py --driver C:\path\to\chromedriver.exe
 python turbolearn_signup.py --clear-cache
 ```
 
-## 🎨 Customization
-
-The application now features:
-- A blue color scheme (#3a7ebf) for a professional look
-- Custom application icon that matches the color scheme
-- Responsive and clean user interface
-
 ## ⚠️ Note
 
 This tool is for educational purposes only. Please respect TurboLearn's terms of service and policies.
@@ -130,9 +113,6 @@ This tool is for educational purposes only. Please respect TurboLearn's terms of
   3. Download a compatible WebDriver manually and select it in the GUI
   4. Make sure your browser is up to date
   5. Try a different browser
-- For desktop shortcut creation issues:
-  1. Make sure `pywin32` and `winshell` are installed (`pip install pywin32 winshell`)
-  2. For icon generation, ensure `pillow` is installed (`pip install pillow`)
 
 ## 🤝 Contributing
 

@@ -9,7 +9,6 @@ import tkinter as tk
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import uuid
 try:
     import customtkinter as ctk
 except ImportError:
@@ -333,55 +332,41 @@ class RedirectText:
 
 class AccountInfo:
     def __init__(self):
-        self.data_dir = os.path.join(os.path.expanduser("~"), ".turbolearn")
-        self.accounts_file = os.path.join(self.data_dir, "accounts.json")
-        
-        # Create directory if it doesn't exist
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
-            
-        # Initialize or load accounts
+        self.file_path = "account_data.json"
         self.accounts = self.load_accounts()
-        
+        self.backup_dir = "backups"
+        # Create backup directory if it doesn't exist
+        if not os.path.exists(self.backup_dir):
+            os.makedirs(self.backup_dir)
+            
     def load_accounts(self):
-        if os.path.exists(self.accounts_file):
+        if os.path.exists(self.file_path):
             try:
-                with open(self.accounts_file, "r") as file:
-                    return json.load(file)
+                with open(self.file_path, "r") as f:
+                    return json.load(f)
             except:
-                pass
-                
-        # Default structure if file doesn't exist or error
-        return {
-            "accounts": [],
-            "statistics": {"success": 0, "failed": 0},
-            "settings": {"auth_password": "turbolearn123"},
-            "favorites": [],  # Store favorite account IDs
-            "tags": {},       # Map tag names to colors
-            "account_tags": {}  # Map account IDs to list of tags
-        }
-        
+                return {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
+        else:
+            return {"accounts": [], "statistics": {"success": 0, "failed": 0}, "settings": {"auth_password": "turbolearn123"}}
+            
     def save_accounts(self):
-        with open(self.accounts_file, "w") as file:
-            json.dump(self.accounts, file)
+        with open(self.file_path, "w") as f:
+            json.dump(self.accounts, f)
+        # Create backup after saving
+        self.create_backup()
             
     def add_account(self, first_name, last_name, email, password, url, success=True):
-        # Create unique ID for the account
-        account_id = str(uuid.uuid4())
-        
-        # Create account object
         account = {
-            "id": account_id,
             "first_name": first_name,
             "last_name": last_name,
             "email": email,
             "password": password,
             "url": url,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "status": "Success" if success else "Failed"
+            "status": "Success" if success else "Failed",
+            "used": False,
+            "last_used": None
         }
-        
-        # Add to accounts list
         self.accounts["accounts"].append(account)
         
         # Update statistics
@@ -390,192 +375,176 @@ class AccountInfo:
         else:
             self.accounts["statistics"]["failed"] += 1
             
-        # Save to file
         self.save_accounts()
         
-        return account
+        # Schedule dashboard refresh on the main thread
+        if hasattr(self, 'root'):
+            self.root.after(0, self.refresh_dashboard)
         
-    def get_accounts(self, favorites_first=True):
-        accounts = self.accounts["accounts"]
+    def get_accounts(self):
+        return self.accounts["accounts"]
         
-        if favorites_first and "favorites" in self.accounts:
-            # Sort with favorites at the top
-            favorites = self.accounts["favorites"]
-            sorted_accounts = []
-            
-            # Add favorites first
-            for account in accounts:
-                if account["id"] in favorites:
-                    sorted_accounts.append(account)
-            
-            # Add non-favorites
-            for account in accounts:
-                if account["id"] not in favorites:
-                    sorted_accounts.append(account)
-                    
-            return sorted_accounts
-        
-        return accounts
-    
     def get_statistics(self):
         return self.accounts["statistics"]
         
     def get_auth_password(self):
-        if "settings" in self.accounts and "auth_password" in self.accounts["settings"]:
-            return self.accounts["settings"]["auth_password"]
-        return "turbolearn123"  # Default password
+        """Get the stored authentication password"""
+        if "settings" not in self.accounts:
+            self.accounts["settings"] = {"auth_password": "turbolearn123"}
+            self.save_accounts()
+        return self.accounts["settings"].get("auth_password", "turbolearn123")
         
     def set_auth_password(self, new_password):
+        """Update the authentication password"""
         if "settings" not in self.accounts:
             self.accounts["settings"] = {}
-            
         self.accounts["settings"]["auth_password"] = new_password
         self.save_accounts()
         
-    def toggle_favorite(self, account_id):
-        """Toggle favorite status for an account"""
-        if "favorites" not in self.accounts:
-            self.accounts["favorites"] = []
+    def create_backup(self):
+        """Create a backup of the account data"""
+        if not os.path.exists(self.file_path):
+            return
             
-        if account_id in self.accounts["favorites"]:
-            self.accounts["favorites"].remove(account_id)
-            is_favorite = False
-        else:
-            self.accounts["favorites"].append(account_id)
-            is_favorite = True
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = os.path.join(self.backup_dir, f"accounts_backup_{timestamp}.json")
+        
+        try:
+            import shutil
+            shutil.copy2(self.file_path, backup_path)
+            # Keep only the last 10 backups
+            self.cleanup_old_backups()
+            return backup_path
+        except Exception as e:
+            print(f"Backup failed: {str(e)}")
+            return None
             
-        self.save_accounts()
-        return is_favorite
-        
-    def is_favorite(self, account_id):
-        """Check if an account is favorite"""
-        if "favorites" not in self.accounts:
-            return False
-        return account_id in self.accounts["favorites"]
-    
-    def add_tag(self, tag_name, tag_color="#3a7ebf"):
-        """Add a new tag with color"""
-        if "tags" not in self.accounts:
-            self.accounts["tags"] = {}
+    def cleanup_old_backups(self):
+        """Keep only the 10 most recent backups"""
+        try:
+            backups = [os.path.join(self.backup_dir, f) for f in os.listdir(self.backup_dir) 
+                    if f.startswith("accounts_backup_") and f.endswith(".json")]
+            backups.sort(reverse=True)  # Sort newest first
             
-        self.accounts["tags"][tag_name] = tag_color
-        self.save_accounts()
-        
-    def remove_tag(self, tag_name):
-        """Remove a tag and all its assignments"""
-        if "tags" not in self.accounts or tag_name not in self.accounts["tags"]:
-            return False
+            # Remove older backups beyond the 10 most recent
+            if len(backups) > 10:
+                for old_backup in backups[10:]:
+                    os.remove(old_backup)
+        except Exception as e:
+            print(f"Cleanup failed: {str(e)}")
             
-        # Remove the tag
-        del self.accounts["tags"][tag_name]
-        
-        # Remove tag assignments from accounts
-        if "account_tags" in self.accounts:
-            for account_id in list(self.accounts["account_tags"].keys()):
-                if tag_name in self.accounts["account_tags"][account_id]:
-                    self.accounts["account_tags"][account_id].remove(tag_name)
-                    
-                # Clean up empty tag lists
-                if not self.accounts["account_tags"][account_id]:
-                    del self.accounts["account_tags"][account_id]
-                    
-        self.save_accounts()
-        return True
-        
-    def get_tags(self):
-        """Get all available tags with colors"""
-        if "tags" not in self.accounts:
-            self.accounts["tags"] = {}
-        return self.accounts["tags"]
-        
-    def add_account_tag(self, account_id, tag_name):
-        """Add a tag to an account"""
-        # Make sure the tag exists
-        if "tags" not in self.accounts or tag_name not in self.accounts["tags"]:
+    def restore_from_backup(self, backup_path):
+        """Restore account data from a backup file"""
+        if not os.path.exists(backup_path):
             return False
             
-        # Initialize account_tags if needed
-        if "account_tags" not in self.accounts:
-            self.accounts["account_tags"] = {}
-            
-        # Initialize tags for this account if needed
-        if account_id not in self.accounts["account_tags"]:
-            self.accounts["account_tags"][account_id] = []
-            
-        # Add the tag if not already there
-        if tag_name not in self.accounts["account_tags"][account_id]:
-            self.accounts["account_tags"][account_id].append(tag_name)
-            self.save_accounts()
-            
-        return True
-        
-    def remove_account_tag(self, account_id, tag_name):
-        """Remove a tag from an account"""
-        if "account_tags" not in self.accounts or account_id not in self.accounts["account_tags"]:
-            return False
-            
-        if tag_name in self.accounts["account_tags"][account_id]:
-            self.accounts["account_tags"][account_id].remove(tag_name)
-            
-            # Clean up empty tag lists
-            if not self.accounts["account_tags"][account_id]:
-                del self.accounts["account_tags"][account_id]
+        try:
+            with open(backup_path, "r") as f:
+                backup_data = json.load(f)
                 
-            self.save_accounts()
-            return True
+            # Validate backup data structure
+            if not isinstance(backup_data, dict) or "accounts" not in backup_data:
+                return False
+                
+            # Create a backup of current data before restoring
+            current_backup = self.create_backup()
             
-        return False
-        
-    def get_account_tags(self, account_id):
-        """Get all tags for an account"""
-        if "account_tags" not in self.accounts or account_id not in self.accounts["account_tags"]:
+            # Restore from backup
+            self.accounts = backup_data
+            with open(self.file_path, "w") as f:
+                json.dump(self.accounts, f)
+                
+            return True
+        except Exception as e:
+            print(f"Restore failed: {str(e)}")
+            return False
+            
+    def get_available_backups(self):
+        """Get a list of available backup files"""
+        try:
+            backups = [f for f in os.listdir(self.backup_dir) 
+                    if f.startswith("accounts_backup_") and f.endswith(".json")]
+            backups.sort(reverse=True)  # Sort newest first
+            
+            result = []
+            for backup in backups:
+                # Extract timestamp from filename
+                timestamp = backup.replace("accounts_backup_", "").replace(".json", "")
+                # Format for display
+                date_time = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
+                formatted_date = date_time.strftime("%Y-%m-%d %H:%M:%S")
+                
+                backup_path = os.path.join(self.backup_dir, backup)
+                file_size = os.path.getsize(backup_path)
+                
+                result.append({
+                    "filename": backup,
+                    "path": backup_path,
+                    "timestamp": formatted_date,
+                    "size": f"{file_size/1024:.1f} KB"
+                })
+                
+            return result
+        except Exception as e:
+            print(f"Failed to get backups: {str(e)}")
             return []
             
-        return self.accounts["account_tags"][account_id]
+    def export_to_cloud(self, cloud_service="dropbox"):
+        """Export account data to cloud storage (placeholder function)"""
+        # This would be implemented with appropriate cloud service API
+        return False
         
-    def get_accounts_by_tag(self, tag_name):
-        """Get all accounts with a specific tag"""
-        result = []
+    def import_from_cloud(self, cloud_service="dropbox"):
+        """Import account data from cloud storage (placeholder function)"""
+        # This would be implemented with appropriate cloud service API
+        return False
         
-        if "account_tags" not in self.accounts:
-            return result
-            
-        # Find all accounts with this tag
-        for account_id, tags in self.accounts["account_tags"].items():
-            if tag_name in tags:
-                # Find the account by ID
-                for account in self.accounts["accounts"]:
-                    if account["id"] == account_id:
-                        result.append(account)
-                        break
-                        
-        return result
-    
-    def delete_account(self, account_id):
-        """Delete an account and all its references"""
-        # Remove from accounts list
-        for i, account in enumerate(self.accounts["accounts"]):
-            if account["id"] == account_id:
-                del self.accounts["accounts"][i]
-                
-                # Update statistics
-                if account["status"] == "Success":
-                    self.accounts["statistics"]["success"] -= 1
-                else:
-                    self.accounts["statistics"]["failed"] -= 1
-                    
-                # Remove from favorites
-                if "favorites" in self.accounts and account_id in self.accounts["favorites"]:
-                    self.accounts["favorites"].remove(account_id)
-                    
-                # Remove from tags
-                if "account_tags" in self.accounts and account_id in self.accounts["account_tags"]:
-                    del self.accounts["account_tags"][account_id]
-                    
+    def mark_account_used(self, account_email, used=True):
+        """Mark an account as used or unused"""
+        for account in self.accounts["accounts"]:
+            if account["email"] == account_email:
+                account["used"] = used
+                account["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if used else account.get("last_used")
                 self.save_accounts()
                 return True
-                
         return False
+        
+    def batch_action(self, emails, action):
+        """Perform an action on multiple accounts
+        Actions: delete, mark_used, mark_unused, export"""
+        results = {"success": 0, "failed": 0}
+        
+        if action == "delete":
+            # Find accounts to remove
+            to_remove = []
+            for i, account in enumerate(self.accounts["accounts"]):
+                if account["email"] in emails:
+                    to_remove.append(i)
+                    
+                    # Update statistics
+                    if account["status"] == "Success":
+                        self.accounts["statistics"]["success"] -= 1
+                    else:
+                        self.accounts["statistics"]["failed"] -= 1
+                    
+                    results["success"] += 1
+            
+            # Remove accounts in reverse order to avoid index issues
+            for i in sorted(to_remove, reverse=True):
+                self.accounts["accounts"].pop(i)
+                
+        elif action in ["mark_used", "mark_unused"]:
+            used_state = action == "mark_used"
+            for account in self.accounts["accounts"]:
+                if account["email"] in emails:
+                    account["used"] = used_state
+                    if used_state:
+                        account["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    results["success"] += 1
+        
+        # Save changes
+        self.save_accounts()
+        return results
 
 # Create a function to detect installed drivers
 def detect_installed_drivers():
@@ -607,39 +576,6 @@ def detect_installed_drivers():
 class TurboLearnGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
-        
-        # Define color themes with blue accent instead of purple
-        self.colors = {
-            "light": {
-                "bg": "#ffffff",
-                "fg": "#18181b",
-                "bg_secondary": "#f1f5f9",
-                "border": "#e2e8f0",
-                "accent": "#3a7ebf",  # Changed from #6923ff to blue
-                "accent_foreground": "#f8fafc",
-                "success": "#22c55e",
-                "warning": "#f59e0b",
-                "error": "#ef4444",
-                "icon": "#64748b"
-            },
-            "dark": {
-                "bg": "#18181b",
-                "fg": "#f8fafc",
-                "bg_secondary": "#27272a",
-                "border": "#3f3f46",
-                "accent": "#3a7ebf",  # Changed from #6923ff to blue
-                "accent_foreground": "#f8fafc",
-                "success": "#22c55e",
-                "warning": "#f59e0b",
-                "error": "#ef4444",
-                "icon": "#94a3b8"
-            }
-        }
-        
-        # Create app icon if it doesn't exist
-        self.create_app_icon()
-        
-        # Continue with the rest of initialization
         
         # Configure window
         self.title("TurboLearn Signup Automation")
@@ -687,22 +623,26 @@ class TurboLearnGUI(ctk.CTk):
         
     def create_tabs(self):
         # Create tabview
-        self.tabview = ctk.CTkTabview(self, corner_radius=10)
-        self.tabview.pack(expand=True, fill="both", padx=10, pady=10)
+        self.tabview = ctk.CTkTabview(self)
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=5)  # Reduced padding
         
         # Create tabs
         self.tab_automation = self.tabview.add("Automation")
         self.tab_dashboard = self.tabview.add("Dashboard")
         self.tab_visualization = self.tabview.add("Analytics")
-        self.tab_scheduler = self.tabview.add("Scheduler")
         self.tab_settings = self.tabview.add("Settings")
         
-        # Setup each tab
+        # Reduce the vertical space in the dashboard tab
+        self.tab_dashboard.configure(fg_color="transparent")
+        
+        # Setup tabs
         self.setup_automation_tab()
         self.setup_dashboard_tab()
         self.setup_visualization_tab()
-        self.setup_scheduler_tab()
         self.setup_settings_tab()
+        
+        # Set default tab
+        self.tabview.set("Automation")
         
     def setup_automation_tab(self):
         # Create left and right frames
@@ -1325,11 +1265,9 @@ class TurboLearnGUI(ctk.CTk):
         # Handle authentication if enabled
         if hasattr(self, 'dashboard_login_var') and not self.dashboard_login_var.get():
             # Skip authentication if disabled
-            self.is_authenticated = True  # Set authenticated since login is disabled
             self.create_dashboard_content()
         else:
             # Create authentication panel
-            self.is_authenticated = False  # Not authenticated until login
             self.create_auth_panel()
     
     def create_auth_panel(self):
@@ -1428,160 +1366,292 @@ class TurboLearnGUI(ctk.CTk):
             self.show_message("Error", "Invalid password. Please try again.")
     
     def create_dashboard_content(self):
-        """Show the actual dashboard content after authentication"""
-        # Add toolbar frame with actions
-        toolbar_frame = ctk.CTkFrame(self.dashboard_frame)
-        toolbar_frame.pack(fill="x", padx=10, pady=(10, 5))
+        # Create split view
+        dashboard_split = ctk.CTkFrame(self.dashboard_frame)
+        dashboard_split.pack(fill="both", expand=True, padx=10, pady=5)  # Reduced pady from 10 to 5
         
-        # Left side of toolbar
-        left_actions = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
-        left_actions.pack(side="left", fill="x", expand=True)
+        # Left side - Account list
+        left_frame = ctk.CTkFrame(dashboard_split)
+        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=0)
         
-        # Search frame
-        search_frame = ctk.CTkFrame(left_actions, fg_color="transparent")
-        search_frame.pack(side="left", padx=5, fill="x", expand=True)
+        # Right side - Account details
+        self.detail_frame = ctk.CTkFrame(dashboard_split)
+        # Details frame will be packed when an account is selected
         
-        self.search_var = tk.StringVar()
-        self.search_var.trace_add("write", lambda *args: self.filter_accounts())
+        # Add title and refresh button in same row with minimal vertical space
+        title_frame = ctk.CTkFrame(left_frame)
+        title_frame.pack(fill="x", padx=10, pady=(2, 1))  # Minimal padding
         
-        search_entry = ctk.CTkEntry(
-            search_frame, 
-            placeholder_text="Search accounts...",
-            textvariable=self.search_var,
-            width=200
+        dashboard_title = ctk.CTkLabel(
+            title_frame, 
+            text="Account Dashboard", 
+            font=ctk.CTkFont(size=18, weight="bold")  # Slightly smaller font
         )
-        search_entry.pack(side="left", padx=5, fill="x", expand=True)
+        dashboard_title.pack(side="left", pady=0)  # No vertical padding
         
-        # Clear search button
-        clear_button = ctk.CTkButton(
-            search_frame,
-            text="✕",
-            width=30,
-            command=lambda: self.search_var.set("")
-        )
-        clear_button.pack(side="left", padx=5)
-        
-        # Right side of toolbar
-        right_actions = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
-        right_actions.pack(side="right")
-        
-        # Refresh button
         refresh_button = ctk.CTkButton(
-            right_actions,
+            title_frame,
             text="Refresh",
             command=self.refresh_dashboard,
-            width=80
+            width=80,
+            height=22  # Slightly reduced height
         )
-        refresh_button.pack(side="left", padx=5)
+        refresh_button.pack(side="right", padx=10, pady=0)
         
-        # Export button
-        export_button = ctk.CTkButton(
-            right_actions,
-            text="Export CSV",
-            command=self.export_accounts_to_csv,
-            width=80
+        # Compact header section that contains both Select All and column headers
+        compact_header = ctk.CTkFrame(left_frame)
+        compact_header.pack(fill="x", padx=10, pady=(0, 1))
+        
+        # Grid layout for better alignment
+        compact_header.grid_columnconfigure(0, weight=0)  # For checkbox
+        compact_header.grid_columnconfigure(1, weight=2)  # Name
+        compact_header.grid_columnconfigure(2, weight=2)  # Email
+        compact_header.grid_columnconfigure(3, weight=1)  # Created
+        compact_header.grid_columnconfigure(4, weight=1)  # Status
+        compact_header.grid_columnconfigure(5, weight=1)  # Actions
+        
+        # Select All checkbox directly in the header
+        select_all_var = tk.BooleanVar(value=False)
+        select_all_cb = ctk.CTkCheckBox(
+            compact_header,
+            text="",
+            variable=select_all_var,
+            command=lambda: self.toggle_select_all(select_all_var.get()),
+            checkbox_width=16,
+            checkbox_height=16,
+            corner_radius=3,
+            width=10
         )
-        export_button.pack(side="left", padx=5)
+        select_all_cb.grid(row=0, column=0, padx=5, pady=0, sticky="w")
         
-        # Create split view for table and detail view
-        self.dashboard_split = ctk.CTkFrame(self.dashboard_frame)
-        self.dashboard_split.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Table frame - left side
-        self.table_frame = ctk.CTkFrame(self.dashboard_split)
-        self.table_frame.pack(side="left", fill="both", expand=True, padx=(0, 5), pady=0)
-        
-        # Detail frame - right side (initially hidden)
-        self.detail_frame = ctk.CTkFrame(self.dashboard_split)
-        
-        # Add quick access bar at the bottom
-        self.create_quick_access_bar()
-        
-        # Table headers
-        headers = ["First Name", "Last Name", "Email", "Created", "Status", "Actions"]
-        header_frame = ctk.CTkFrame(self.table_frame)
-        header_frame.pack(fill="x", padx=5, pady=5)
-        
-        # Configure grid
+        # Column headers in the same row as the checkbox
+        headers = ["Name", "Email", "Created", "Status", "Actions"]
         for i, header in enumerate(headers):
-            lbl = ctk.CTkLabel(header_frame, text=header, font=ctk.CTkFont(weight="bold"))
-            lbl.grid(row=0, column=i, padx=5, pady=5, sticky="w")
-            header_frame.grid_columnconfigure(i, weight=1)
+            label = ctk.CTkLabel(
+                compact_header, 
+                text=header, 
+                font=ctk.CTkFont(weight="bold", size=13),  # Slightly smaller font
+                anchor="w"
+            )
+            label.grid(row=0, column=i+1, padx=5, pady=0, sticky="w")
         
-        # Create scrollable frame for data
-        self.account_scroll = ctk.CTkScrollableFrame(self.table_frame)
-        self.account_scroll.pack(fill="both", expand=True, padx=5, pady=5)
+        # Batch action buttons frame (will be shown when items are selected)
+        self.batch_buttons_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        self.batch_buttons_frame.pack(side="top", fill="x", padx=10, pady=0)
+        
+        # Store checkbox variables - initialize empty dict here
+        self.account_checkboxes = {}
+        
+        # Initially hide batch buttons - they'll be shown when selections are made
+        self.update_batch_buttons()
+        
+        # Create scrollable frame for accounts with more vertical space now
+        self.account_scroll = ctk.CTkScrollableFrame(left_frame)
+        self.account_scroll.pack(fill="both", expand=True, padx=10, pady=(0, 5))  # No top padding
         
         # Load accounts
         self.refresh_dashboard()
-        self.account_detail = None  # Track the currently selected account
         
-    def filter_accounts(self, *args):
-        """Filter accounts based on search query"""
-        query = self.search_var.get().lower() if hasattr(self, 'search_var') else ""
+    def toggle_select_all(self, select_all):
+        """Select or deselect all account checkboxes"""
+        for email, var in self.account_checkboxes.items():
+            var.set(select_all)
         
-        # If no search query, just refresh normally
-        if not query:
+        # Update batch action buttons
+        self.update_batch_buttons()
+        
+    def update_batch_buttons(self):
+        """Show or hide batch action buttons based on selections"""
+        # Ensure account_checkboxes exists
+        if not hasattr(self, 'account_checkboxes'):
+            self.account_checkboxes = {}
+            return
+            
+        # Clear existing buttons
+        for widget in self.batch_buttons_frame.winfo_children():
+            widget.destroy()
+            
+        # Count selected accounts
+        selected_count = sum(var.get() for var in self.account_checkboxes.values())
+        
+        if selected_count > 0:
+            # Make the frame visible with compact layout
+            self.batch_buttons_frame.pack(fill="x", padx=10, pady=(1, 1))
+            
+            # Even more compact batch buttons
+            delete_button = ctk.CTkButton(
+                self.batch_buttons_frame,
+                text=f"Delete ({selected_count})",
+                command=lambda: self.batch_delete(),
+                fg_color="red",
+                hover_color="darkred",
+                width=100,
+                height=22  # Smaller height
+            )
+            delete_button.pack(side="left", padx=2, pady=1)
+            
+            # Mark as Used button
+            used_button = ctk.CTkButton(
+                self.batch_buttons_frame,
+                text=f"Mark Used ({selected_count})",
+                command=lambda: self.batch_mark_used(True),
+                fg_color="green",
+                hover_color="darkgreen",
+                width=100,
+                height=22  # Smaller height
+            )
+            used_button.pack(side="left", padx=2, pady=1)
+            
+            # Mark as Unused button
+            unused_button = ctk.CTkButton(
+                self.batch_buttons_frame,
+                text=f"Mark Unused ({selected_count})",
+                command=lambda: self.batch_mark_used(False),
+                fg_color="orange",
+                hover_color="darkorange",
+                width=100,
+                height=22  # Smaller height
+            )
+            unused_button.pack(side="left", padx=2, pady=1)
+        else:
+            # Hide the frame when no selections
+            self.batch_buttons_frame.pack_forget()
+    
+    def get_selected_accounts(self):
+        """Get a list of selected account emails"""
+        return [email for email, var in self.account_checkboxes.items() if var.get()]
+        
+    def batch_delete(self):
+        """Delete all selected accounts"""
+        selected_emails = self.get_selected_accounts()
+        
+        if not selected_emails:
+            return
+            
+        # Confirm deletion
+        confirm = tk.messagebox.askyesno(
+            "Confirm Batch Delete", 
+            f"Are you sure you want to delete {len(selected_emails)} accounts?"
+        )
+        
+        if confirm:
+            # Perform batch delete
+            results = self.account_info.batch_action(selected_emails, "delete")
+            
+            # Update UI
             self.refresh_dashboard()
+            self.refresh_visualization()
+            self.close_account_details()
+            
+            self.show_message("Batch Delete", f"Successfully deleted {results['success']} accounts.")
+    
+    def batch_mark_used(self, used=True):
+        """Mark all selected accounts as used or unused"""
+        selected_emails = self.get_selected_accounts()
+        
+        if not selected_emails:
+            return
+            
+        # Perform batch mark
+        action = "mark_used" if used else "mark_unused"
+        results = self.account_info.batch_action(selected_emails, action)
+        
+        # Update UI
+        self.refresh_dashboard()
+        
+        status = "used" if used else "unused"
+        self.show_message("Batch Update", f"Successfully marked {results['success']} accounts as {status}.")
+
+    def refresh_dashboard(self):
+        # If not authenticated, don't load private data
+        if not hasattr(self, 'account_scroll') or not self.is_authenticated:
             return
             
         # Clear existing widgets in scrollable frame
         for widget in self.account_scroll.winfo_children():
             widget.destroy()
+        
+        # Initialize account_checkboxes if not exists
+        if not hasattr(self, 'account_checkboxes'):
+            self.account_checkboxes = {}
+        else:
+            # Reset checkbox variables
+            self.account_checkboxes = {}
             
         # Get accounts
         accounts = self.account_info.get_accounts()
-        filtered_accounts = []
         
-        # Filter based on search query
-        for account in accounts:
-            # Search in name, email, date
-            search_text = (
-                f"{account['first_name']} {account['last_name']} "
-                f"{account['email']} {account['created_at']} {account['status']}"
-            ).lower()
-            
-            if query in search_text:
-                filtered_accounts.append(account)
-        
-        # Add filtered accounts to table
-        self.display_filtered_accounts(filtered_accounts)
-    
-    def display_filtered_accounts(self, accounts):
-        """Display filtered list of accounts"""
-        # If no accounts match, show message
-        if not accounts:
-            no_results = ctk.CTkLabel(
-                self.account_scroll,
-                text="No accounts found matching your search",
-                font=ctk.CTkFont(size=14),
-                text_color="gray"
-            )
-            no_results.pack(pady=30)
-            return
-            
-        # Display accounts
+        # Add accounts to table
         for i, account in enumerate(accounts):
-            # Create colored background based on status
-            bg_color = "#E8F5E9" if account["status"] == "Success" else "#FFEBEE"
-            row_frame = ctk.CTkFrame(self.account_scroll)
-            row_frame.pack(fill="x", padx=5, pady=2)
+            # Background color based on status and used state - adjust for dark mode
+            is_dark_mode = ctk.get_appearance_mode().lower() == "dark"
             
-            # Add data
-            ctk.CTkLabel(row_frame, text=account["first_name"]).grid(row=0, column=0, padx=5, pady=5, sticky="w")
-            ctk.CTkLabel(row_frame, text=account["last_name"]).grid(row=0, column=1, padx=5, pady=5, sticky="w")
-            ctk.CTkLabel(row_frame, text=account["email"]).grid(row=0, column=2, padx=5, pady=5, sticky="w")
-            ctk.CTkLabel(row_frame, text=account["created_at"]).grid(row=0, column=3, padx=5, pady=5, sticky="w")
+            if account.get("used", False):
+                bg_color = "#0d5c63" if is_dark_mode else "#E0F2F1"  # Teal for used accounts
+            elif account["status"] == "Success":
+                bg_color = "#1e4d2b" if is_dark_mode else "#E8F5E9"  # Green for success
+            else:
+                bg_color = "#6b2b2b" if is_dark_mode else "#FFEBEE"  # Red for failed
+                
+            row_frame = ctk.CTkFrame(self.account_scroll)
+            row_frame.pack(fill="x", padx=3, pady=(1, 0))  # Reduced padding
+            row_frame.configure(fg_color=bg_color)
+            
+            # Add checkbox for selection
+            email = account["email"]
+            self.account_checkboxes[email] = tk.BooleanVar(value=False)
+            
+            checkbox = ctk.CTkCheckBox(
+                row_frame, 
+                text="",
+                variable=self.account_checkboxes[email],
+                command=self.update_batch_buttons,
+                width=16,
+                height=16,
+                checkbox_width=16,
+                checkbox_height=16,
+                corner_radius=3,
+                onvalue=True,
+                offvalue=False
+            )
+            checkbox.grid(row=0, column=0, padx=3, pady=2)  # Reduced padding
+            
+            # Add data with reduced padding
+            name_label = ctk.CTkLabel(row_frame, text=f"{account['first_name']} {account['last_name']}")
+            if account.get("used", False):
+                name_label.configure(text_color="gray")
+            name_label.grid(row=0, column=1, padx=3, pady=2, sticky="w")  # Reduced padding
+            
+            email_label = ctk.CTkLabel(row_frame, text=account["email"])
+            if account.get("used", False):
+                email_label.configure(text_color="gray")
+            email_label.grid(row=0, column=2, padx=3, pady=2, sticky="w")  # Reduced padding
+            
+            ctk.CTkLabel(row_frame, text=account["created_at"]).grid(row=0, column=3, padx=3, pady=2, sticky="w")  # Reduced padding
             
             # Status with color
             status_color = "green" if account["status"] == "Success" else "red"
-            status_label = ctk.CTkLabel(row_frame, text=account["status"])
+            if account.get("used", False):
+                status_text = "Used"
+                status_color = "teal"
+            else:
+                status_text = account["status"]
+                
+            status_label = ctk.CTkLabel(row_frame, text=status_text)
             status_label.configure(text_color=status_color)
-            status_label.grid(row=0, column=4, padx=5, pady=5, sticky="w")
+            status_label.grid(row=0, column=4, padx=3, pady=2, sticky="w")  # Reduced padding
             
-            # Action buttons
-            actions_frame = ctk.CTkFrame(row_frame)
-            actions_frame.grid(row=0, column=5, padx=5, pady=5, sticky="e")
+            # Action buttons in more compact layout
+            actions_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
+            actions_frame.grid(row=0, column=5, padx=3, pady=2, sticky="e")  # Tighter padding
+            
+            # Grid layout for better spacing
+            for j in range(6):
+                row_frame.grid_columnconfigure(j, weight=[0, 2, 2, 1, 1, 1][j])
+                
+            # More compact action buttons
+            button_height = 22
+            button_width = 45
             
             # Open in browser button
             if account["status"] == "Success" and "url" in account and account["url"]:
@@ -1589,31 +1659,70 @@ class TurboLearnGUI(ctk.CTk):
                     actions_frame,
                     text="Open",
                     command=lambda acc=account: self.open_account(acc["url"]),
-                    width=60,
-                    height=25
+                    width=button_width,
+                    height=button_height
                 )
-                open_button.pack(side="left", padx=5)
+                open_button.pack(side="left", padx=1)
             
             # Copy info button
             copy_button = ctk.CTkButton(
                 actions_frame,
                 text="Copy",
                 command=lambda acc=account: self.copy_account_info(acc),
-                width=60,
-                height=25
+                width=button_width,
+                height=button_height
             )
-            copy_button.pack(side="left", padx=5)
+            copy_button.pack(side="left", padx=1)
+            
+            # Mark as used/unused button
+            if account.get("used", False):
+                used_button = ctk.CTkButton(
+                    actions_frame,
+                    text="Unused",
+                    command=lambda acc=account: self.mark_account_used(acc, False),
+                    width=button_width,
+                    height=button_height,
+                    fg_color="orange",
+                    hover_color="darkorange"
+                )
+                used_button.pack(side="left", padx=1)
+            else:
+                used_button = ctk.CTkButton(
+                    actions_frame,
+                    text="Used",
+                    command=lambda acc=account: self.mark_account_used(acc, True),
+                    width=button_width,
+                    height=button_height,
+                    fg_color="teal",
+                    hover_color="darkslategray"
+                )
+                used_button.pack(side="left", padx=1)
             
             # Configure grid
             for j in range(6):
-                row_frame.grid_columnconfigure(j, weight=1)
+                row_frame.grid_columnconfigure(j, weight=[0, 2, 2, 1, 1, 1][j])
                 
             # Add hover effect
             def on_enter(e, rf=row_frame):
-                rf.configure(fg_color=("gray85", "gray25"))
+                is_dark = ctk.get_appearance_mode().lower() == "dark"
+                original_color = rf.cget("fg_color")
+                
+                if account.get("used", False):
+                    rf.configure(fg_color="#107a82" if is_dark else "#B2DFDB")  # Darker teal
+                elif account["status"] == "Success":
+                    rf.configure(fg_color="#2a6b3c" if is_dark else "#C8E6C9")  # Darker green
+                else:
+                    rf.configure(fg_color="#8c3a3a" if is_dark else "#FFCDD2")  # Darker red
             
             def on_leave(e, rf=row_frame):
-                rf.configure(fg_color=("gray75", "gray30"))
+                is_dark = ctk.get_appearance_mode().lower() == "dark"
+                
+                if account.get("used", False):
+                    rf.configure(fg_color="#0d5c63" if is_dark else "#E0F2F1")  # Teal
+                elif account["status"] == "Success":
+                    rf.configure(fg_color="#1e4d2b" if is_dark else "#E8F5E9")  # Green
+                else:
+                    rf.configure(fg_color="#6b2b2b" if is_dark else "#FFEBEE")  # Red
             
             # Make the row clickable to show details
             def show_detail(e, acc=account):
@@ -1623,191 +1732,353 @@ class TurboLearnGUI(ctk.CTk):
             row_frame.bind("<Leave>", on_leave)
             row_frame.bind("<Button-1>", show_detail)
             
-            # Make all child labels clickable too
-            for child in row_frame.winfo_children():
+            # Make child labels clickable too (except checkbox)
+            for child in row_frame.winfo_children()[1:]:  # Skip checkbox
                 child.bind("<Button-1>", lambda e, acc=account: self.show_account_details(acc))
+        
+        # Check if we need to show batch action buttons
+        self.update_batch_buttons()
+            
+    def mark_account_used(self, account, used=True):
+        """Mark an account as used or unused"""
+        if self.account_info.mark_account_used(account["email"], used):
+            self.refresh_dashboard()
+            
+            status = "used" if used else "unused"
+            self.show_message(
+                "Account Updated", 
+                f"Account {account['email']} marked as {status}."
+            )
+            
+            # If current account details are displayed, refresh them
+            if self.account_detail and self.account_detail["email"] == account["email"]:
+                # Get updated account data
+                for acc in self.account_info.get_accounts():
+                    if acc["email"] == account["email"]:
+                        self.show_account_details(acc)
+                        break
     
-    def setup_settings_tab(self):
-        """Setup the settings tab"""
-        # Create frame for settings
-        self.settings_frame = ctk.CTkFrame(self.tab_settings)
-        self.settings_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    def show_account_details(self, account):
+        # If detail frame is not packed, add it
+        if not self.detail_frame.winfo_children():
+            self.detail_frame.pack(side="right", fill="both", expand=False, padx=(5, 0), pady=0, ipadx=10, ipady=10, anchor="n")
+            self.detail_frame.configure(width=300)
+        else:
+            # Clear existing widgets
+            for widget in self.detail_frame.winfo_children():
+                widget.destroy()
+                
+        # Update the currently selected account
+        self.account_detail = account
         
-        # Settings title
-        settings_title = ctk.CTkLabel(
-            self.settings_frame,
-            text="Settings",
-            font=ctk.CTkFont(size=20, weight="bold")
+        # Create detail view
+        detail_title = ctk.CTkLabel(
+            self.detail_frame, 
+            text="Account Details", 
+            font=ctk.CTkFont(size=18, weight="bold")
         )
-        settings_title.pack(pady=10)
+        detail_title.pack(pady=10)
         
-        # Create scrollable frame for settings
-        settings_scroll = ctk.CTkScrollableFrame(self.settings_frame)
-        settings_scroll.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Theme section
-        theme_frame = ctk.CTkFrame(settings_scroll)
-        theme_frame.pack(fill="x", padx=10, pady=10)
-        
-        theme_label = ctk.CTkLabel(
-            theme_frame,
-            text="Appearance",
-            font=ctk.CTkFont(size=16, weight="bold")
+        # Add close button for detail view
+        close_button = ctk.CTkButton(
+            self.detail_frame,
+            text="Close Details",
+            command=self.close_account_details,
+            width=100,
+            fg_color="gray",
+            hover_color="darkgray"
         )
-        theme_label.pack(anchor="w", padx=10, pady=10)
+        close_button.pack(pady=(0, 20))
         
-        # Appearance mode
-        appearance_label = ctk.CTkLabel(theme_frame, text="Appearance Mode:")
-        appearance_label.pack(anchor="w", padx=10, pady=5)
+        # Create fields
+        fields_frame = ctk.CTkFrame(self.detail_frame)
+        fields_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        appearance_menu = ctk.CTkOptionMenu(
-            theme_frame,
-            values=["System", "Light", "Dark"],
-            command=self.change_appearance_mode
+        # Status indicator at the top
+        status_color = "green" if account["status"] == "Success" else "red"
+        if account.get("used", False):
+            status_color = "teal"
+            
+        status_frame = ctk.CTkFrame(fields_frame, fg_color=status_color)
+        status_frame.pack(fill="x", padx=10, pady=10)
+        
+        status_text = account["status"]
+        if account.get("used", False):
+            status_text = f"Used - {account['status']}"
+            
+        status_label = ctk.CTkLabel(
+            status_frame, 
+            text=f"Status: {status_text}",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="white"
         )
-        appearance_menu.set(ctk.get_appearance_mode())
-        appearance_menu.pack(anchor="w", padx=20, pady=5)
+        status_label.pack(pady=10)
         
-        # UI Scaling
-        scaling_label = ctk.CTkLabel(theme_frame, text="UI Scaling:")
-        scaling_label.pack(anchor="w", padx=10, pady=5)
+        # Last used date if available
+        if account.get("used", False) and account.get("last_used"):
+            last_used = ctk.CTkLabel(
+                status_frame,
+                text=f"Last Used: {account['last_used']}",
+                font=ctk.CTkFont(size=12),
+                text_color="white"
+            )
+            last_used.pack(pady=(0, 10))
         
-        ui_scale_menu = ctk.CTkOptionMenu(
-            theme_frame,
-            values=["80%", "90%", "100%", "110%", "120%"],
-            command=self.change_scaling_event
+        # Account info
+        self.add_detail_field(fields_frame, "First Name", account["first_name"])
+        self.add_detail_field(fields_frame, "Last Name", account["last_name"])
+        self.add_detail_field(fields_frame, "Email", account["email"])
+        self.add_detail_field(fields_frame, "Password", account["password"], True)
+        self.add_detail_field(fields_frame, "Created", account["created_at"])
+        if "url" in account and account["url"]:
+            self.add_detail_field(fields_frame, "URL", account["url"], is_url=True)
+        
+        # Add action buttons
+        action_frame = ctk.CTkFrame(fields_frame)
+        action_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Add Open Account button if URL exists and is valid
+        has_valid_url = "url" in account and account["url"] and account["url"] not in ["Unknown", ""]
+        if has_valid_url and account["status"] == "Success":
+            open_button = ctk.CTkButton(
+                action_frame,
+                text="Open Account",
+                command=lambda: self.open_account(account["url"]),
+                fg_color="blue",
+                hover_color="darkblue"
+            )
+            open_button.pack(fill="x", pady=5)
+        
+        copy_button = ctk.CTkButton(
+            action_frame,
+            text="Copy Account Info",
+            command=lambda: self.copy_account_info(account)
         )
-        ui_scale_menu.set("100%")
-        ui_scale_menu.pack(anchor="w", padx=20, pady=5)
+        copy_button.pack(fill="x", pady=5)
         
-        # Dashboard Login Toggle
-        dashboard_frame = ctk.CTkFrame(settings_scroll)
-        dashboard_frame.pack(fill="x", padx=10, pady=10)
+        # Toggle used status button
+        if account.get("used", False):
+            mark_button = ctk.CTkButton(
+                action_frame,
+                text="Mark as Unused",
+                command=lambda: self.mark_account_used(account, False),
+                fg_color="orange",
+                hover_color="darkorange"
+            )
+        else:
+            mark_button = ctk.CTkButton(
+                action_frame,
+                text="Mark as Used",
+                command=lambda: self.mark_account_used(account, True),
+                fg_color="teal",
+                hover_color="darkslategray"
+            )
+        mark_button.pack(fill="x", pady=5)
         
-        dashboard_label = ctk.CTkLabel(
-            dashboard_frame,
-            text="Dashboard Login",
-            font=ctk.CTkFont(size=16, weight="bold")
+        delete_button = ctk.CTkButton(
+            action_frame,
+            text="Delete Account",
+            command=lambda: self.delete_account(account),
+            fg_color="red",
+            hover_color="darkred"
         )
-        dashboard_label.pack(anchor="w", padx=10, pady=10)
+        delete_button.pack(fill="x", pady=5)
+    
+    def add_detail_field(self, parent, label_text, value, is_password=False, is_url=False):
+        """Add a field to the detail view"""
+        field_frame = ctk.CTkFrame(parent)
+        field_frame.pack(fill="x", padx=10, pady=5)
         
-        self.dashboard_login_var = tk.BooleanVar(value=False)
-        
-        login_switch = ctk.CTkSwitch(
-            dashboard_frame,
-            text="",
-            variable=self.dashboard_login_var,
-            command=self.toggle_dashboard_login,
-            onvalue=True,
-            offvalue=False
+        label = ctk.CTkLabel(
+            field_frame, 
+            text=f"{label_text}:",
+            font=ctk.CTkFont(weight="bold"),
+            width=100,
+            anchor="w"
         )
-        login_switch.pack(side="left", padx=10, pady=10)
+        label.pack(side="left", padx=5, pady=5)
         
-        # Shortcut section
-        shortcut_frame = ctk.CTkFrame(settings_scroll)
-        shortcut_frame.pack(fill="x", padx=10, pady=10)
+        # Password handling with show/hide functionality
+        if is_password:
+            # Create a container for the password field and buttons
+            password_container = ctk.CTkFrame(field_frame, fg_color="transparent")
+            password_container.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+            
+            # Create a StringVar to store the displayed password value
+            password_var = tk.StringVar(value="••••••••")
+            password_shown = False
+            
+            # Password value label
+            value_label = ctk.CTkLabel(
+                password_container, 
+                textvariable=password_var,
+                anchor="w"
+            )
+            value_label.pack(side="left", fill="x", expand=True)
+            
+            # Function to toggle password visibility
+            def toggle_password():
+                nonlocal password_shown
+                password_shown = not password_shown
+                if password_shown:
+                    password_var.set(value)
+                    show_btn.configure(text="👁️", hover_color="#e5e5e5", fg_color="#d1d1d1")
+                else:
+                    password_var.set("••••••••")
+                    show_btn.configure(text="👁️", hover_color="#e5e5e5", fg_color="transparent")
+            
+            # Show password button
+            show_btn = ctk.CTkButton(
+                field_frame,
+                text="👁️",
+                width=30,
+                height=25,
+                command=toggle_password,
+                fg_color="transparent",
+                hover_color="#e5e5e5"
+            )
+            show_btn.pack(side="right", padx=(0, 5), pady=5)
+            
+            # Copy button
+            copy_button = ctk.CTkButton(
+                field_frame,
+                text="📋",
+                width=30,
+                height=25,
+                command=lambda: self.copy_to_clipboard(value, "Password copied to clipboard"),
+                fg_color="transparent",
+                hover_color="#e5e5e5"
+            )
+            copy_button.pack(side="right", padx=5, pady=5)
+            
+        elif is_url:
+            # Truncate URL for display
+            display_value = value
+            if len(value) > 25:
+                display_value = value[:22] + "..."
+                
+            # URL value label
+            value_label = ctk.CTkLabel(
+                field_frame, 
+                text=display_value,
+                anchor="w"
+            )
+            value_label.pack(side="left", padx=5, pady=5, fill="x", expand=True)
+            
+            # Add open button for URL
+            open_button = ctk.CTkButton(
+                field_frame,
+                text="🔗",
+                width=30,
+                height=25,
+                command=lambda: self.open_account(value),
+                fg_color="transparent",
+                hover_color="#e5e5e5"
+            )
+            open_button.pack(side="right", padx=5, pady=5)
+            
+            # Add copy button for URL
+            copy_button = ctk.CTkButton(
+                field_frame,
+                text="📋",
+                width=30,
+                height=25,
+                command=lambda: self.copy_to_clipboard(value, "URL copied to clipboard"),
+                fg_color="transparent",
+                hover_color="#e5e5e5"
+            )
+            copy_button.pack(side="right", padx=5, pady=5)
+        else:
+            # Regular value field
+            value_label = ctk.CTkLabel(
+                field_frame, 
+                text=value,
+                anchor="w"
+            )
+            value_label.pack(side="left", padx=5, pady=5, fill="x", expand=True)
+            
+            # Add copy button for regular fields
+            copy_button = ctk.CTkButton(
+                field_frame,
+                text="📋",
+                width=30,
+                height=25,
+                command=lambda: self.copy_to_clipboard(value, f"{label_text} copied to clipboard"),
+                fg_color="transparent",
+                hover_color="#e5e5e5"
+            )
+            copy_button.pack(side="right", padx=5, pady=5)
+    
+    def close_account_details(self):
+        """Close the account details panel"""
+        # Remove all widgets
+        for widget in self.detail_frame.winfo_children():
+            widget.destroy()
+            
+        # Hide the frame
+        self.detail_frame.pack_forget()
         
-        shortcut_label = ctk.CTkLabel(
-            shortcut_frame,
-            text="Desktop Shortcut",
-            font=ctk.CTkFont(size=16, weight="bold")
+        # Clear the selected account
+        self.account_detail = None
+    
+    def open_account(self, url):
+        """Open the account URL in the default browser"""
+        import webbrowser
+        webbrowser.open(url)
+    
+    def copy_account_info(self, account):
+        """Copy account information to clipboard"""
+        # Format account info
+        info = f"Email: {account['email']}\nPassword: {account['password']}"
+        
+        # Copy to clipboard
+        self.copy_to_clipboard(info, "Account info copied to clipboard")
+    
+    def copy_to_clipboard(self, text, message=None):
+        """Copy text to clipboard"""
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        
+        if message:
+            self.show_message("Copied", message)
+    
+    def delete_account(self, account):
+        """Delete an account"""
+        # Confirm deletion
+        confirm = tk.messagebox.askyesno(
+            "Confirm Delete", 
+            f"Are you sure you want to delete the account {account['email']}?"
         )
-        shortcut_label.pack(anchor="w", padx=10, pady=10)
         
-        create_shortcut_button = ctk.CTkButton(
-            shortcut_frame,
-            text="Create Desktop Shortcut",
-            command=self.create_desktop_shortcut
-        )
-        create_shortcut_button.pack(anchor="w", padx=20, pady=10)
-        
-        # Security settings
-        security_frame = ctk.CTkFrame(settings_scroll)
-        security_frame.pack(fill="x", padx=10, pady=10)
-        
-        security_label = ctk.CTkLabel(
-            security_frame,
-            text="Security",
-            font=ctk.CTkFont(size=16, weight="bold")
-        )
-        security_label.pack(anchor="w", padx=10, pady=10)
-        
-        # Password change section
-        password_frame = ctk.CTkFrame(security_frame)
-        password_frame.pack(fill="x", padx=10, pady=10)
-        
-        # Current password
-        current_pass_frame = ctk.CTkFrame(password_frame)
-        current_pass_frame.pack(fill="x", padx=10, pady=5)
-        
-        current_pass_label = ctk.CTkLabel(
-            current_pass_frame,
-            text="Current Password:",
-            width=150
-        )
-        current_pass_label.pack(side="left", padx=(0, 10))
-        
-        self.current_password_var = tk.StringVar()
-        current_pass_entry = ctk.CTkEntry(
-            current_pass_frame,
-            textvariable=self.current_password_var,
-            show="*",
-            width=200,
-            height=30
-        )
-        current_pass_entry.pack(side="left")
-        
-        # New password
-        new_pass_frame = ctk.CTkFrame(password_frame)
-        new_pass_frame.pack(fill="x", padx=10, pady=5)
-        
-        new_pass_label = ctk.CTkLabel(
-            new_pass_frame,
-            text="New Password:",
-            width=150
-        )
-        new_pass_label.pack(side="left", padx=(0, 10))
-        
-        self.new_password_var = tk.StringVar()
-        new_pass_entry = ctk.CTkEntry(
-            new_pass_frame,
-            textvariable=self.new_password_var,
-            show="*",
-            width=200,
-            height=30
-        )
-        new_pass_entry.pack(side="left")
-        
-        # Confirm password
-        confirm_pass_frame = ctk.CTkFrame(password_frame)
-        confirm_pass_frame.pack(fill="x", padx=10, pady=5)
-        
-        confirm_pass_label = ctk.CTkLabel(
-            confirm_pass_frame,
-            text="Confirm Password:",
-            width=150
-        )
-        confirm_pass_label.pack(side="left", padx=(0, 10))
-        
-        self.confirm_password_var = tk.StringVar()
-        confirm_pass_entry = ctk.CTkEntry(
-            confirm_pass_frame,
-            textvariable=self.confirm_password_var,
-            show="*",
-            width=200,
-            height=30
-        )
-        confirm_pass_entry.pack(side="left")
-        
-        # Change password button
-        change_pass_button = ctk.CTkButton(
-            password_frame,
-            text="Change Password",
-            command=self.change_password,
-            fg_color="blue",
-            hover_color="darkblue"
-        )
-        change_pass_button.pack(anchor="w", padx=10, pady=10)
+        if confirm:
+            # Get current accounts
+            accounts = self.account_info.get_accounts()
+            
+            # Find and remove account
+            for i, acc in enumerate(accounts):
+                if acc["email"] == account["email"]:
+                    # Remove from list
+                    del self.account_info.accounts["accounts"][i]
+                    
+                    # Update statistics
+                    if acc["status"] == "Success":
+                        self.account_info.accounts["statistics"]["success"] -= 1
+                    else:
+                        self.account_info.accounts["statistics"]["failed"] -= 1
+                    
+                    # Save changes
+                    self.account_info.save_accounts()
+                    
+                    # Close detail view
+                    self.close_account_details()
+                    
+                    # Refresh UI
+                    self.refresh_dashboard()
+                    self.refresh_visualization()
+                    
+                    # Show confirmation
+                    self.show_message("Account Deleted", f"Account {account['email']} has been deleted.")
+                    return
     
     def change_appearance_mode(self, new_appearance_mode: str):
         ctk.set_appearance_mode(new_appearance_mode)
@@ -2172,23 +2443,13 @@ class TurboLearnGUI(ctk.CTk):
             # Get application path
             target = sys.executable
             
-            # Get or create icon
-            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
-            if not os.path.exists(icon_path):
-                icon_path = self.create_app_icon()
-            
             # Create shell link
             shell = win32com.client.Dispatch("WScript.Shell")
             shortcut = shell.CreateShortCut(shortcut_path)
             shortcut.Targetpath = target
             shortcut.WorkingDirectory = os.path.dirname(os.path.abspath(__file__))
             shortcut.Arguments = os.path.abspath(__file__)
-            
-            # Use the icon if it exists, otherwise use the executable
-            if icon_path and os.path.exists(icon_path):
-                shortcut.IconLocation = icon_path
-            else:
-                shortcut.IconLocation = target
+            shortcut.IconLocation = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
             
             # Save shortcut
             shortcut.save()
@@ -2220,420 +2481,648 @@ class TurboLearnGUI(ctk.CTk):
             self.create_dashboard_content()
             self.show_message("Info", "Dashboard login disabled. Authentication is now bypassed.")
 
-    def create_app_icon(self):
-        """Create an application icon file if it doesn't exist"""
-        try:
-            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
-            
-            # If icon already exists, don't recreate it
-            if os.path.exists(icon_path):
-                return icon_path
-                
-            # Check if PIL is installed
-            try:
-                from PIL import Image, ImageDraw
-            except ImportError:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "pillow"])
-                from PIL import Image, ImageDraw
-                
-            # Create a base image (64x64) with transparent background
-            img = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))
-            draw = ImageDraw.Draw(img)
-            
-            # Draw a blue circle for the background
-            draw.ellipse((4, 4, 60, 60), fill=(58, 126, 191))  # #3a7ebf in RGB
-            
-            # Draw a stylized "T" in white
-            draw.rectangle((20, 15, 44, 22), fill=(255, 255, 255))
-            draw.rectangle((28, 22, 36, 48), fill=(255, 255, 255))
-            
-            # Save as .ico file
-            img.save(icon_path, format='ICO')
-            return icon_path
-            
-        except Exception as e:
-            print(f"Error creating icon: {str(e)}")
-            return None
+    def setup_settings_tab(self):
+        # Create scrollable frame for settings
+        self.settings_scroll = ctk.CTkScrollableFrame(self.tab_settings)
+        self.settings_scroll.pack(fill="both", expand=True, padx=10, pady=10)
 
-    def export_accounts_to_csv(self):
-        """Export accounts to CSV file"""
-        try:
-            import csv
-            from tkinter import filedialog
-            
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-                title="Export Account Data as CSV"
-            )
-            
-            if not file_path:
-                return
-                
-            accounts = self.account_info.get_accounts()
-                
-            with open(file_path, "w", newline="", encoding="utf-8") as f:
-                # Define CSV fields
-                fieldnames = ["first_name", "last_name", "email", "password", "url", "created_at", "status"]
-                
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                # Write account data
-                for account in accounts:
-                    # Create a filtered dict with only the fields we want
-                    row = {field: account.get(field, "") for field in fieldnames}
-                    writer.writerow(row)
-                
-            self.show_message("Export Successful", f"{len(accounts)} accounts exported to CSV successfully.")
-        except Exception as e:
-            self.show_message("Export Failed", f"Error exporting data: {str(e)}")
-            print(f"CSV export error: {str(e)}")
-            
-    def create_quick_access_bar(self):
-        """Create a quick access bar at the bottom of the dashboard"""
-        quick_bar = ctk.CTkFrame(self.dashboard_frame)
-        quick_bar.pack(fill="x", padx=10, pady=5, side="bottom")
+        # Create settings frame
+        self.settings_frame = ctk.CTkFrame(self.settings_scroll)
+        self.settings_frame.pack(fill="x", padx=10, pady=10)
         
-        # Add quick buttons
-        buttons = [
-            ("New Account", lambda: self.tabview.set("Automation"), "➕"),
-            ("Export CSV", lambda: self.export_accounts_to_csv(), "📄"),
-            ("Check Updates", self.check_for_updates, "🔄"),
-            ("Test Proxy", self.show_proxy_tester, "🌐")
-        ]
+        # Add title
+        settings_title = ctk.CTkLabel(
+            self.settings_frame, 
+            text="Settings", 
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        settings_title.pack(pady=10)
         
-        for text, command, icon in buttons:
-            btn = ctk.CTkButton(
-                quick_bar,
-                text=f"{icon} {text}",
-                command=command,
-                height=30
-            )
-            btn.pack(side="left", padx=5, pady=5, fill="x", expand=True)
-            
-    def check_for_updates(self):
-        """Check GitHub for updates to the application"""
-        try:
-            import urllib.request
-            import json
-            
-            # Create status window
-            status_window = ctk.CTkToplevel(self)
-            status_window.title("Update Check")
-            status_window.geometry("400x200")
-            status_window.transient(self)
-            status_window.grab_set()
-            
-            # Add loading indicator
-            status_label = ctk.CTkLabel(
-                status_window,
-                text="Checking for updates...",
-                font=ctk.CTkFont(size=16)
-            )
-            status_label.pack(pady=20)
-            
-            progress = ctk.CTkProgressBar(status_window)
-            progress.pack(padx=20, pady=10, fill="x")
-            progress.start()
-            
-            # Function to check for updates in background
-            def check_update_thread():
-                try:
-                    # Current version (example: 1.0.0)
-                    current_version = "1.0.0"
-                    
-                    # GitHub API URL for latest release
-                    url = "https://api.github.com/repos/Yetemgeta-B/Turbolearn/releases/latest"
-                    
-                    # Set up request with user agent
-                    req = urllib.request.Request(
-                        url,
-                        headers={'User-Agent': 'TurboLearn Update Checker'}
-                    )
-                    
-                    # Make the request
-                    with urllib.request.urlopen(req, timeout=5) as response:
-                        data = json.loads(response.read().decode('utf-8'))
-                        
-                    # Get the latest version (remove 'v' prefix if present)
-                    latest_version = data['tag_name'].lstrip('v')
-                    release_notes = data['body']
-                    download_url = data['html_url']
-                    
-                    # Compare versions
-                    if latest_version > current_version:
-                        # Update the UI with the results
-                        status_window.after(0, lambda: update_ui(
-                            f"New version available: {latest_version}",
-                            True,
-                            latest_version,
-                            release_notes,
-                            download_url
-                        ))
-                    else:
-                        # No update needed
-                        status_window.after(0, lambda: update_ui(
-                            f"You have the latest version: {current_version}",
-                            False
-                        ))
-                        
-                except Exception as e:
-                    # Handle errors
-                    status_window.after(0, lambda: update_ui(
-                        f"Error checking for updates: {str(e)}",
-                        False
-                    ))
-            
-            # Function to update the UI with results
-            def update_ui(message, update_available, version=None, notes=None, url=None):
-                # Stop progress bar and update status
-                progress.stop()
-                status_label.configure(text=message)
-                
-                if update_available:
-                    # Show update details
-                    notes_frame = ctk.CTkScrollableFrame(status_window, height=80)
-                    notes_frame.pack(padx=20, pady=10, fill="x")
-                    
-                    notes_label = ctk.CTkLabel(
-                        notes_frame,
-                        text=notes,
-                        wraplength=350,
-                        justify="left"
-                    )
-                    notes_label.pack(padx=10, pady=10, fill="both")
-                    
-                    # Add download button
-                    download_button = ctk.CTkButton(
-                        status_window,
-                        text="Download Update",
-                        command=lambda: self.open_url(url)
-                    )
-                    download_button.pack(pady=10)
-                else:
-                    # Add close button
-                    close_button = ctk.CTkButton(
-                        status_window,
-                        text="Close",
-                        command=status_window.destroy
-                    )
-                    close_button.pack(pady=20)
-            
-            # Start the check in a separate thread
-            import threading
-            update_thread = threading.Thread(target=check_update_thread)
-            update_thread.daemon = True
-            update_thread.start()
-            
-        except Exception as e:
-            self.show_message("Error", f"Failed to check for updates: {str(e)}")
-            
-    def show_proxy_tester(self):
-        """Show proxy testing dialog"""
-        proxy_window = ctk.CTkToplevel(self)
-        proxy_window.title("Proxy Tester")
-        proxy_window.geometry("500x400")
-        proxy_window.transient(self)
-        proxy_window.grab_set()
+        # APPEARANCE SETTINGS
+        appearance_frame = ctk.CTkFrame(self.settings_frame)
+        appearance_frame.pack(fill="x", padx=10, pady=10)
         
-        # Header
-        header_label = ctk.CTkLabel(
-            proxy_window,
-            text="Test Proxy Connection",
+        appearance_label = ctk.CTkLabel(
+            appearance_frame, 
+            text="Appearance", 
             font=ctk.CTkFont(size=16, weight="bold")
         )
-        header_label.pack(pady=10)
+        appearance_label.pack(anchor="w", padx=10, pady=5)
         
-        # Proxy input
-        input_frame = ctk.CTkFrame(proxy_window)
-        input_frame.pack(padx=20, pady=10, fill="x")
+        # Appearance mode
+        appearance_mode_frame = ctk.CTkFrame(appearance_frame)
+        appearance_mode_frame.pack(fill="x", padx=10, pady=5)
         
-        proxy_label = ctk.CTkLabel(input_frame, text="Proxy URL:")
-        proxy_label.pack(side="left", padx=10)
+        appearance_mode_label = ctk.CTkLabel(appearance_mode_frame, text="Theme:", width=150)
+        appearance_mode_label.pack(side="left", padx=10, pady=5)
         
-        proxy_var = tk.StringVar()
-        proxy_entry = ctk.CTkEntry(input_frame, textvariable=proxy_var, width=300)
-        proxy_entry.pack(side="left", padx=10, fill="x", expand=True)
-        
-        # Format helper text
-        format_label = ctk.CTkLabel(
-            proxy_window,
-            text="Format: http://username:password@host:port or http://host:port",
-            font=ctk.CTkFont(size=12),
-            text_color="gray"
+        appearance_mode_menu = ctk.CTkOptionMenu(
+            appearance_mode_frame, 
+            values=["System", "Light", "Dark"],
+            command=self.change_appearance_mode
         )
-        format_label.pack(pady=(0, 10))
+        appearance_mode_menu.set("System")
+        appearance_mode_menu.pack(side="left", padx=10, pady=5)
         
-        # Test sites
-        sites_frame = ctk.CTkFrame(proxy_window)
-        sites_frame.pack(padx=20, pady=10, fill="x")
+        # UI scaling
+        scaling_frame = ctk.CTkFrame(appearance_frame)
+        scaling_frame.pack(fill="x", padx=10, pady=5)
         
-        sites_label = ctk.CTkLabel(sites_frame, text="Test Sites:")
-        sites_label.pack(anchor="w", padx=10, pady=5)
+        scaling_label = ctk.CTkLabel(scaling_frame, text="UI Scaling:", width=150)
+        scaling_label.pack(side="left", padx=10, pady=5)
         
-        test_sites = [
-            ("Google", "https://www.google.com"),
-            ("Cloudflare", "https://www.cloudflare.com"),
-            ("GitHub", "https://api.github.com"),
-            ("Custom URL", "")
-        ]
-        
-        site_var = tk.StringVar(value=test_sites[0][1])
-        
-        for i, (name, url) in enumerate(test_sites):
-            site_rb = ctk.CTkRadioButton(
-                sites_frame,
-                text=name,
-                variable=site_var,
-                value=url,
-                command=lambda: custom_entry.configure(state="normal" if site_var.get() == "" else "disabled")
-            )
-            site_rb.pack(anchor="w", padx=20, pady=2)
-        
-        # Custom URL entry
-        custom_frame = ctk.CTkFrame(sites_frame)
-        custom_frame.pack(padx=20, pady=5, fill="x")
-        
-        custom_var = tk.StringVar()
-        custom_entry = ctk.CTkEntry(custom_frame, textvariable=custom_var, placeholder_text="Enter custom URL", state="disabled")
-        custom_entry.pack(fill="x")
-        
-        # Results frame
-        results_frame = ctk.CTkFrame(proxy_window)
-        results_frame.pack(padx=20, pady=10, fill="both", expand=True)
-        
-        results_label = ctk.CTkLabel(
-            results_frame,
-            text="Test Results:",
-            font=ctk.CTkFont(weight="bold")
+        scaling_menu = ctk.CTkOptionMenu(
+            scaling_frame,
+            values=["80%", "90%", "100%", "110%", "120%"],
+            command=self.change_scaling_event
         )
-        results_label.pack(anchor="w", padx=10, pady=5)
+        scaling_menu.set("100%")
+        scaling_menu.pack(side="left", padx=10, pady=5)
         
-        results_text = ctk.CTkTextbox(results_frame)
-        results_text.pack(padx=10, pady=5, fill="both", expand=True)
-        results_text.configure(state="disabled")
+        # DASHBOARD LOGIN SETTINGS
+        login_frame = ctk.CTkFrame(self.settings_frame)
+        login_frame.pack(fill="x", padx=10, pady=10)
         
-        # Test button
-        test_button = ctk.CTkButton(
-            proxy_window,
-            text="Test Connection",
-            command=lambda: self.test_proxy_connection(
-                proxy_var.get(),
-                site_var.get() if site_var.get() != "" else custom_var.get(),
-                results_text
-            )
+        login_label = ctk.CTkLabel(
+            login_frame, 
+            text="Dashboard Login", 
+            font=ctk.CTkFont(size=16, weight="bold")
         )
-        test_button.pack(pady=10)
+        login_label.pack(anchor="w", padx=10, pady=5)
         
-    def test_proxy_connection(self, proxy_url, test_url, results_text):
-        """Test a proxy connection to a specified URL"""
-        if not proxy_url:
-            self.show_message("Error", "Please enter a proxy URL")
-            return
+        # Dashboard login toggle
+        login_toggle_frame = ctk.CTkFrame(login_frame)
+        login_toggle_frame.pack(fill="x", padx=10, pady=5)
+        
+        login_toggle_label = ctk.CTkLabel(login_toggle_frame, text="Require Authentication:", width=150)
+        login_toggle_label.pack(side="left", padx=10, pady=5)
+        
+        self.dashboard_login_var = tk.BooleanVar(value=True)
+        login_toggle_switch = ctk.CTkSwitch(
+            login_toggle_frame,
+            text="",
+            variable=self.dashboard_login_var,
+            command=self.toggle_dashboard_login
+        )
+        login_toggle_switch.pack(side="left", padx=10, pady=5)
+        
+        # BACKUP & SYNC SETTINGS
+        backup_frame = ctk.CTkFrame(self.settings_frame)
+        backup_frame.pack(fill="x", padx=10, pady=10)
+        
+        backup_label = ctk.CTkLabel(
+            backup_frame, 
+            text="Backup & Sync", 
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        backup_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Create backup button
+        backup_button_frame = ctk.CTkFrame(backup_frame)
+        backup_button_frame.pack(fill="x", padx=10, pady=5)
+        
+        create_backup_button = ctk.CTkButton(
+            backup_button_frame,
+            text="Create Backup Now",
+            command=self.create_manual_backup
+        )
+        create_backup_button.pack(side="left", padx=10, pady=5)
+        
+        # Restore from backup button
+        restore_backup_button = ctk.CTkButton(
+            backup_button_frame,
+            text="Restore From Backup",
+            command=self.show_restore_dialog,
+            fg_color="orange",
+            hover_color="darkorange"
+        )
+        restore_backup_button.pack(side="left", padx=10, pady=5)
+        
+        # DESKTOP SHORTCUT
+        shortcut_frame = ctk.CTkFrame(self.settings_frame)
+        shortcut_frame.pack(fill="x", padx=10, pady=10)
+        
+        shortcut_label = ctk.CTkLabel(
+            shortcut_frame, 
+            text="Desktop Integration", 
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        shortcut_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Create desktop shortcut button
+        shortcut_button_frame = ctk.CTkFrame(shortcut_frame)
+        shortcut_button_frame.pack(fill="x", padx=10, pady=5)
+        
+        create_shortcut_button = ctk.CTkButton(
+            shortcut_button_frame,
+            text="Create Desktop Shortcut",
+            command=self.create_desktop_shortcut
+        )
+        create_shortcut_button.pack(side="left", padx=10, pady=5)
+        
+        # SECURITY SETTINGS
+        security_frame = ctk.CTkFrame(self.settings_frame)
+        security_frame.pack(fill="x", padx=10, pady=10)
+        
+        security_label = ctk.CTkLabel(
+            security_frame, 
+            text="Security", 
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        security_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Change password
+        pwd_frame = ctk.CTkFrame(security_frame)
+        pwd_frame.pack(fill="x", padx=10, pady=5)
+        
+        current_pwd_label = ctk.CTkLabel(pwd_frame, text="Current Password:", width=150)
+        current_pwd_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        
+        self.current_pwd = tk.StringVar()
+        current_pwd_entry = ctk.CTkEntry(pwd_frame, textvariable=self.current_pwd, show="•", width=200, height=30)
+        current_pwd_entry.grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        
+        new_pwd_label = ctk.CTkLabel(pwd_frame, text="New Password:", width=150)
+        new_pwd_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        
+        self.new_pwd = tk.StringVar()
+        new_pwd_entry = ctk.CTkEntry(pwd_frame, textvariable=self.new_pwd, show="•", width=200, height=30)
+        new_pwd_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        
+        confirm_pwd_label = ctk.CTkLabel(pwd_frame, text="Confirm Password:", width=150)
+        confirm_pwd_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        
+        self.confirm_pwd = tk.StringVar()
+        confirm_pwd_entry = ctk.CTkEntry(pwd_frame, textvariable=self.confirm_pwd, show="•", width=200, height=30)
+        confirm_pwd_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        
+        change_pwd_button = ctk.CTkButton(
+            pwd_frame, 
+            text="Update Password",
+            command=self.change_password,
+            fg_color="#3a7ebf",
+            hover_color="#2a6eaf"
+        )
+        change_pwd_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+        
+        # DATA MANAGEMENT
+        data_frame = ctk.CTkFrame(self.settings_frame)
+        data_frame.pack(fill="x", padx=10, pady=10)
+        
+        data_label = ctk.CTkLabel(
+            data_frame, 
+            text="Data Management", 
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        data_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Data options
+        data_buttons_frame = ctk.CTkFrame(data_frame)
+        data_buttons_frame.pack(fill="x", padx=10, pady=5)
+        
+        export_button = ctk.CTkButton(
+            data_buttons_frame,
+            text="Export Data",
+            command=self.export_data
+        )
+        export_button.pack(side="left", padx=10, pady=5)
+        
+        import_button = ctk.CTkButton(
+            data_buttons_frame,
+            text="Import JSON",
+            command=self.import_json_data,
+            fg_color="#3a7ebf",
+            hover_color="#2a6eaf"
+        )
+        import_button.pack(side="left", padx=10, pady=5)
+        
+        clear_button = ctk.CTkButton(
+            data_buttons_frame,
+            text="Clear All Data",
+            command=self.clear_data,
+            fg_color="red",
+            hover_color="darkred"
+        )
+        clear_button.pack(side="left", padx=10, pady=5)
+
+    def import_json_data(self):
+        """Import account data from a JSON file"""
+        from tkinter import filedialog
+        
+        # Show file dialog
+        file_path = filedialog.askopenfilename(
+            title="Import Account Data",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if not file_path:
+            return  # User canceled
             
-        if not test_url:
-            self.show_message("Error", "Please enter a test URL")
-            return
+        try:
+            # Read JSON file
+            with open(file_path, "r") as f:
+                import_data = json.load(f)
+                
+            # Validate data structure
+            if not isinstance(import_data, dict) or "accounts" not in import_data:
+                self.show_message("Import Error", "Invalid data format. File must contain an 'accounts' key.")
+                return
+                
+            # Ask if user wants to merge or replace
+            confirm = tk.messagebox.askyesno(
+                "Import Options", 
+                "Do you want to MERGE with existing data?\n\n"
+                "Yes = Merge (add imported accounts to existing)\n"
+                "No = Replace (overwrite all existing data)"
+            )
             
-        # Enable text widget for writing results
-        results_text.configure(state="normal")
-        results_text.delete("0.0", "end")
-        results_text.insert("0.0", f"Testing proxy: {proxy_url}\nTarget: {test_url}\n\n")
-        
-        # Run test in background thread
-        def test_thread():
-            try:
-                import requests
-                import time
+            if confirm:  # Merge
+                # Get existing accounts
+                existing_accounts = self.account_info.get_accounts()
+                existing_emails = [acc["email"] for acc in existing_accounts]
                 
-                start_time = time.time()
-                
-                # Set up proxy
-                proxies = {
-                    "http": proxy_url,
-                    "https": proxy_url
-                }
-                
-                # Make the request with a timeout
-                response = requests.get(test_url, proxies=proxies, timeout=10)
-                
-                # Calculate time
-                elapsed_time = time.time() - start_time
-                
-                # Show results
-                if response.status_code == 200:
-                    results = (
-                        f"✅ Success! Connected in {elapsed_time:.2f} seconds\n\n"
-                        f"Status Code: {response.status_code}\n"
-                        f"Response Size: {len(response.content)} bytes\n\n"
-                        f"Your IP as seen by server: "
-                    )
-                    
-                    # Try to get the IP address
-                    try:
-                        ip_response = requests.get("https://api.ipify.org", proxies=proxies, timeout=5)
-                        results += ip_response.text
-                    except:
-                        results += "Could not determine"
+                # Add imported accounts that don't already exist
+                added = 0
+                for account in import_data["accounts"]:
+                    if "email" in account and account["email"] not in existing_emails:
+                        self.account_info.accounts["accounts"].append(account)
                         
-                else:
-                    results = (
-                        f"⚠️ Warning: Got response code {response.status_code} in {elapsed_time:.2f} seconds\n\n"
-                        f"This might indicate an issue with the proxy or the target site.\n"
-                        f"Response Size: {len(response.content)} bytes"
-                    )
-                    
-                # Update UI in main thread
-                self.after(0, lambda: update_results(results, "success" if response.status_code == 200 else "warning"))
+                        # Update statistics based on status
+                        if account.get("status") == "Success":
+                            self.account_info.accounts["statistics"]["success"] += 1
+                        else:
+                            self.account_info.accounts["statistics"]["failed"] += 1
+                            
+                        added += 1
+                        existing_emails.append(account["email"])
+                        
+                # Save changes
+                self.account_info.save_accounts()
                 
-            except Exception as e:
-                # Handle error
-                error_message = (
-                    f"❌ Error: Could not connect using the proxy\n\n"
-                    f"Error details: {str(e)}\n\n"
-                    f"Possible causes:\n"
-                    f"- Incorrect proxy format\n"
-                    f"- Proxy server is down or unreachable\n"
-                    f"- Authentication required but not provided\n"
-                    f"- Network connectivity issues"
+                # Display result
+                self.show_message("Import Complete", f"Successfully added {added} new accounts.")
+                
+            else:  # Replace
+                # Create backup of current data before replacing
+                backup_path = self.account_info.create_backup()
+                
+                # Replace all data
+                self.account_info.accounts = import_data
+                
+                # Make sure statistics are correct
+                if "statistics" not in self.account_info.accounts:
+                    success_count = len([a for a in import_data["accounts"] if a.get("status") == "Success"])
+                    failed_count = len([a for a in import_data["accounts"] if a.get("status") != "Success"])
+                    
+                    self.account_info.accounts["statistics"] = {
+                        "success": success_count,
+                        "failed": failed_count
+                    }
+                    
+                # Make sure settings exists
+                if "settings" not in self.account_info.accounts:
+                    self.account_info.accounts["settings"] = {"auth_password": "turbolearn123"}
+                    
+                # Save changes
+                self.account_info.save_accounts()
+                
+                # Display result
+                self.show_message(
+                    "Import Complete", 
+                    f"Successfully replaced data with {len(import_data['accounts'])} accounts.\n"
+                    f"A backup of your previous data was created at: {backup_path}"
+                )
+            
+            # Ensure authentication state is set for dashboard access
+            if not self.is_authenticated:
+                if hasattr(self, 'dashboard_login_var') and not self.dashboard_login_var.get():
+                    self.is_authenticated = True
+                    # Recreate dashboard content if on dashboard tab
+                    if self.tabview.get() == "Dashboard":
+                        for widget in self.dashboard_frame.winfo_children():
+                            widget.destroy()
+                        self.create_dashboard_content()
+                else:
+                    # Show authentication screen
+                    for widget in self.dashboard_frame.winfo_children():
+                        widget.destroy()
+                    self.create_auth_panel()
+                
+            # Refresh UI
+            self.force_refresh_dashboard()
+            self.refresh_visualization()
+                
+        except Exception as e:
+            self.show_message("Import Error", f"Failed to import data: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def setup_visualization_tab(self):
+        """Setup the visualization tab with charts and analytics"""
+        # Create frame for visualizations
+        viz_frame = ctk.CTkFrame(self.tab_visualization)
+        viz_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Add title
+        viz_title = ctk.CTkLabel(
+            viz_frame, 
+            text="Account Analytics", 
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        viz_title.pack(pady=10)
+        
+        # Create frame for charts
+        charts_frame = ctk.CTkFrame(viz_frame)
+        charts_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create left and right frames for charts
+        left_chart = ctk.CTkFrame(charts_frame)
+        left_chart.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        
+        right_chart = ctk.CTkFrame(charts_frame)
+        right_chart.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        
+        # Placeholder message if no data
+        left_placeholder = ctk.CTkLabel(
+            left_chart, 
+            text="Success rate chart will appear here\nwhen you create accounts.",
+            font=ctk.CTkFont(size=14)
+        )
+        left_placeholder.pack(pady=50)
+        
+        right_placeholder = ctk.CTkLabel(
+            right_chart, 
+            text="Account timeline will appear here\nwhen you create accounts.",
+            font=ctk.CTkFont(size=14)
+        )
+        right_placeholder.pack(pady=50)
+        
+        # Add refresh button
+        refresh_button = ctk.CTkButton(
+            viz_frame,
+            text="Refresh Charts",
+            command=self.refresh_visualization
+        )
+        refresh_button.pack(pady=10)
+        
+        # Store chart frames for later use
+        self.viz_frame = viz_frame
+        self.charts_frame = charts_frame
+    
+    def refresh_visualization(self):
+        """Refresh visualization charts with latest data"""
+        # Clear existing widgets in charts frame
+        for widget in self.charts_frame.winfo_children():
+            widget.destroy()
+            
+        # Get statistics
+        stats = self.account_info.get_statistics()
+        accounts = self.account_info.get_accounts()
+        
+        # Create left and right frames for charts
+        left_chart = ctk.CTkFrame(self.charts_frame)
+        left_chart.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        
+        right_chart = ctk.CTkFrame(self.charts_frame)
+        right_chart.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        
+        # Create figure for left chart - Success vs Failed
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            
+            fig1 = plt.Figure(figsize=(5, 4), dpi=100)
+            ax1 = fig1.add_subplot(111)
+            
+            # Data for pie chart
+            labels = ['Success', 'Failed']
+            sizes = [stats["success"], stats["failed"]]
+            colors = ['#4CAF50', '#F44336']
+            
+            # Create pie chart
+            if sum(sizes) > 0:  # Only create chart if we have data
+                ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+                ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
+                ax1.set_title('Success Rate')
+                
+                # Create canvas for pie chart
+                canvas1 = FigureCanvasTkAgg(fig1, left_chart)
+                canvas1.draw()
+                canvas1.get_tk_widget().pack(fill="both", expand=True)
+            else:
+                # No data message
+                no_data = ctk.CTkLabel(
+                    left_chart, 
+                    text="No data available yet.\nCreate accounts to see statistics.",
+                    font=ctk.CTkFont(size=14)
+                )
+                no_data.pack(pady=50)
+            
+            # Create figure for right chart - Timeline of account creation
+            if len(accounts) > 0:
+                fig2 = plt.Figure(figsize=(5, 4), dpi=100)
+                ax2 = fig2.add_subplot(111)
+                
+                # Extract dates and statuses
+                dates = []
+                statuses = []
+                for acc in accounts:
+                    try:
+                        date = datetime.strptime(acc["created_at"], "%Y-%m-%d %H:%M:%S")
+                        status = 1 if acc["status"] == "Success" else 0
+                        dates.append(date)
+                        statuses.append(status)
+                    except:
+                        pass
+                        
+                # Sort by date
+                date_status = sorted(zip(dates, statuses), key=lambda x: x[0])
+                if date_status:
+                    dates, statuses = zip(*date_status)
+                    
+                    # Create cumulative sum line
+                    cumulative = [sum(statuses[:i+1]) for i in range(len(statuses))]
+                    
+                    # Plot
+                    ax2.plot(dates, cumulative, marker='o', linestyle='-', color='blue')
+                    ax2.set_title('Accounts Created Over Time')
+                    ax2.set_xlabel('Date')
+                    ax2.set_ylabel('Total Successful Accounts')
+                    
+                    # Format dates properly
+                    fig2.autofmt_xdate()
+                    
+                    # Create canvas for line chart
+                    canvas2 = FigureCanvasTkAgg(fig2, right_chart)
+                    canvas2.draw()
+                    canvas2.get_tk_widget().pack(fill="both", expand=True)
+                else:
+                    # No valid date data
+                    no_data = ctk.CTkLabel(
+                        right_chart, 
+                        text="No valid date data available.",
+                        font=ctk.CTkFont(size=14)
+                    )
+                    no_data.pack(pady=50)
+            else:
+                # No data message
+                no_data = ctk.CTkLabel(
+                    right_chart, 
+                    text="No data available yet.\nCreate accounts to see timeline.",
+                    font=ctk.CTkFont(size=14)
+                )
+                no_data.pack(pady=50)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            error_label = ctk.CTkLabel(
+                left_chart,
+                text=f"Error creating charts: {str(e)}\nMake sure matplotlib is installed.",
+                font=ctk.CTkFont(size=14),
+                text_color="red"
+            )
+            error_label.pack(pady=20)
+
+    def show_restore_dialog(self):
+        """Show dialog to restore from a backup"""
+        # Get available backups
+        backups = self.account_info.get_available_backups()
+        
+        if not backups:
+            self.show_message("No Backups", "No backup files were found.")
+            return
+            
+        # Create dialog
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Restore from Backup")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        
+        # Add title
+        title = ctk.CTkLabel(
+            dialog, 
+            text="Select a Backup to Restore", 
+            font=ctk.CTkFont(size=16, weight="bold")
+        )
+        title.pack(pady=10)
+        
+        # Add list of backups
+        backup_frame = ctk.CTkScrollableFrame(dialog)
+        backup_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        selected_backup = tk.StringVar()
+        
+        for i, backup in enumerate(backups):
+            backup_row = ctk.CTkFrame(backup_frame)
+            backup_row.pack(fill="x", padx=5, pady=2)
+            
+            radio = ctk.CTkRadioButton(
+                backup_row,
+                text="",
+                variable=selected_backup,
+                value=backup["path"]
+            )
+            radio.pack(side="left", padx=5, pady=5)
+            
+            info_frame = ctk.CTkFrame(backup_row)
+            info_frame.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+            
+            date_label = ctk.CTkLabel(
+                info_frame,
+                text=f"Date: {backup['timestamp']}",
+                font=ctk.CTkFont(weight="bold")
+            )
+            date_label.pack(anchor="w")
+            
+            size_label = ctk.CTkLabel(
+                info_frame,
+                text=f"Size: {backup['size']}"
+            )
+            size_label.pack(anchor="w")
+            
+            # Select first backup by default
+            if i == 0:
+                selected_backup.set(backup["path"])
+                
+        # Add buttons
+        button_frame = ctk.CTkFrame(dialog)
+        button_frame.pack(fill="x", padx=10, pady=10)
+        
+        def restore_selected():
+            backup_path = selected_backup.get()
+            dialog.destroy()
+            
+            if backup_path:
+                confirm = tk.messagebox.askyesno(
+                    "Confirm Restore", 
+                    "Are you sure you want to restore this backup? All current data will be replaced."
                 )
                 
-                # Update UI in main thread
-                self.after(0, lambda: update_results(error_message, "error"))
+                if confirm:
+                    if self.account_info.restore_from_backup(backup_path):
+                        self.show_message("Restore Complete", "Data has been restored from the backup.")
+                        self.refresh_dashboard()
+                        self.refresh_visualization()
+                    else:
+                        self.show_message("Restore Failed", "Failed to restore from backup.")
         
-        # Function to update results in the UI thread
-        def update_results(message, status):
-            # Add colored status indicator
-            if status == "success":
-                results_text.insert("end", message, ("success",))
-                results_text.tag_configure("success", foreground="green")
-            elif status == "warning":
-                results_text.insert("end", message, ("warning",))
-                results_text.tag_configure("warning", foreground="orange")
-            else:
-                results_text.insert("end", message, ("error",))
-                results_text.tag_configure("error", foreground="red")
-                
-            results_text.configure(state="disabled")
+        restore_button = ctk.CTkButton(
+            button_frame,
+            text="Restore Selected Backup",
+            command=restore_selected,
+            fg_color="orange",
+            hover_color="darkorange"
+        )
+        restore_button.pack(side="left", padx=10, pady=10)
         
-        # Start the test thread
-        import threading
-        test_thread = threading.Thread(target=test_thread)
-        test_thread.daemon = True
-        test_thread.start()
+        cancel_button = ctk.CTkButton(
+            button_frame,
+            text="Cancel",
+            command=dialog.destroy,
+            fg_color="gray",
+            hover_color="darkgray"
+        )
+        cancel_button.pack(side="right", padx=10, pady=10)
+
+    def create_manual_backup(self):
+        """Create a manual backup of account data"""
+        backup_path = self.account_info.create_backup()
+        if backup_path:
+            self.show_message("Backup Created", f"Backup saved to: {backup_path}")
+        else:
+            self.show_message("Backup Failed", "Could not create backup. See console for details.")
+
+    def force_refresh_dashboard(self):
+        """Force refresh the dashboard without authentication check"""
+        # Temporarily set authentication to true
+        original_auth_state = self.is_authenticated
+        self.is_authenticated = True
         
-        # Show initial message
-        results_text.insert("end", "Testing connection, please wait...\n\n")
-        results_text.configure(state="disabled")
+        # If on dashboard tab and not set up correctly, initialize it
+        if self.tabview.get() == "Dashboard" and not hasattr(self, 'account_scroll'):
+            # Clear dashboard frame
+            for widget in self.dashboard_frame.winfo_children():
+                widget.destroy()
+            # Create dashboard content
+            self.create_dashboard_content()
+        
+        # Refresh the dashboard display
+        self.refresh_dashboard()
+        
+        # Restore original authentication state
+        self.is_authenticated = original_auth_state
     
-    def open_url(self, url):
-        """Open any URL in the default browser"""
-        try:
-            import webbrowser
-            webbrowser.open(url)
-        except Exception as e:
-            self.show_message("Error", f"Could not open URL: {str(e)}")
+    def check_current_tab(self):
+        """Check which tab is currently selected and handle the change"""
+        current_tab = self.tabview.get()
+        
+        # Call our tab change handler with the current tab
+        self.on_tab_change(current_tab)
+        
+        # Schedule the next check (every 300ms)
+        self.after(300, self.check_current_tab)
 
 if __name__ == "__main__":
     # Check if matplotlib is installed
@@ -2646,8 +3135,7 @@ if __name__ == "__main__":
     # Start the application
     app = TurboLearnGUI()
     
-    # Initialize the scheduler check
-    app.after(1000, app.check_scheduled_tasks)
-    
     # Run the main loop
     app.mainloop() 
+
+
