@@ -45,4 +45,6 @@ downloads/
 
 # Backup files
 *_backup.*
-*_full.* 
+*_full.*
+backups/
+account_data.json 
