@@ -3133,24 +3133,24 @@ class TurboLearnGUI(ctk.CTk):
         self.home_scroll.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Create top row with welcome message and date/time
-        top_frame = ctk.CTkFrame(self.home_scroll)
-        top_frame.pack(fill="x", padx=10, pady=10)
+        top_frame = ctk.CTkFrame(self.home_scroll, height=60)  # Fixed height
+        top_frame.pack(fill="x", padx=10, pady=(5, 5))  # Reduced padding
         
         # Welcome message
         self.welcome_label = ctk.CTkLabel(
             top_frame,
             text="Welcome to TurboLearn Student Dashboard",
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=ctk.CTkFont(size=18, weight="bold")  # Smaller font
         )
-        self.welcome_label.pack(side="left", padx=10, pady=10)
+        self.welcome_label.pack(side="left", padx=10, pady=5)  # Reduced padding
         
         # Date and time display
         self.datetime_label = ctk.CTkLabel(
             top_frame,
             text="",
-            font=ctk.CTkFont(size=14)
+            font=ctk.CTkFont(size=12)  # Smaller font
         )
-        self.datetime_label.pack(side="right", padx=10, pady=10)
+        self.datetime_label.pack(side="right", padx=10, pady=5)  # Reduced padding
         
         # Update time function
         def update_time():
@@ -3163,24 +3163,24 @@ class TurboLearnGUI(ctk.CTk):
         
         # SCHEDULE SECTION - Main focal point
         schedule_frame = ctk.CTkFrame(self.home_scroll)
-        schedule_frame.pack(fill="x", expand=True, padx=10, pady=10)
+        schedule_frame.pack(fill="x", expand=True, padx=10, pady=(5, 5))  # Reduced padding
         
         # Schedule title frame with bright background
-        schedule_title_frame = ctk.CTkFrame(schedule_frame, fg_color="#c8ff00")
-        schedule_title_frame.pack(fill="x", padx=0, pady=(0, 10))
+        schedule_title_frame = ctk.CTkFrame(schedule_frame, fg_color="#c8ff00", height=40)  # Fixed height
+        schedule_title_frame.pack(fill="x", padx=0, pady=(0, 5))  # Reduced padding
         
         schedule_title = ctk.CTkLabel(
             schedule_title_frame,
             text="schedule",
-            font=ctk.CTkFont(size=28, weight="bold"),
+            font=ctk.CTkFont(size=22, weight="bold"),  # Smaller font
             text_color="#6242f5",  # Purple text color
             fg_color="transparent"
         )
-        schedule_title.pack(pady=20)
+        schedule_title.pack(pady=8)  # Reduced padding
         
         # Create the main schedule container
         self.schedule_container = ctk.CTkFrame(schedule_frame)
-        self.schedule_container.pack(fill="both", expand=True, padx=5, pady=5)
+        self.schedule_container.pack(fill="both", expand=True, padx=5, pady=2)  # Reduced padding
         
         # Display schedule in grid format
         self.create_schedule_grid()
@@ -3189,238 +3189,252 @@ class TurboLearnGUI(ctk.CTk):
         edit_schedule_btn = ctk.CTkButton(
             schedule_frame,
             text="Edit Schedule",
-            command=self.edit_schedule
+            command=self.edit_schedule,
+            height=28  # Reduced height
         )
-        edit_schedule_btn.pack(padx=10, pady=10)
+        edit_schedule_btn.pack(padx=10, pady=(2, 5))  # Reduced padding
         
         # Create container for weather and utilities (will appear when scrolling down)
         features_frame = ctk.CTkFrame(self.home_scroll)
-        features_frame.pack(fill="x", expand=True, padx=10, pady=10)
+        features_frame.pack(fill="x", expand=True, padx=10, pady=(0, 5))  # Reduced padding
         
         # Create middle frame for weather
         weather_frame = ctk.CTkFrame(features_frame)
-        weather_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        weather_frame.pack(side="left", fill="both", expand=True, padx=2, pady=2)  # Reduced padding
         
         weather_title = ctk.CTkLabel(
             weather_frame,
             text="🌤️ Weather Updates",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ctk.CTkFont(size=14, weight="bold")  # Smaller font
         )
-        weather_title.pack(anchor="nw", padx=10, pady=10)
+        weather_title.pack(anchor="nw", padx=8, pady=5)  # Reduced padding
         
         # Weather content
         self.weather_content = ctk.CTkFrame(weather_frame)
-        self.weather_content.pack(fill="both", expand=True, padx=10, pady=10)
+        self.weather_content.pack(fill="both", expand=True, padx=5, pady=5)  # Reduced padding
         
         # Location entry and button
         location_frame = ctk.CTkFrame(self.weather_content)
-        location_frame.pack(fill="x", padx=10, pady=10)
+        location_frame.pack(fill="x", padx=5, pady=2)  # Reduced padding
         
         self.location_var = tk.StringVar(value="New York")
         location_entry = ctk.CTkEntry(
             location_frame,
             placeholder_text="Enter city",
             textvariable=self.location_var,
-            width=150
+            width=120,  # Reduced width
+            height=28  # Reduced height
         )
-        location_entry.pack(side="left", padx=5, pady=5)
+        location_entry.pack(side="left", padx=2, pady=2)  # Reduced padding
         
         get_weather_btn = ctk.CTkButton(
             location_frame,
             text="Get Weather",
-            command=self.fetch_weather  # We'll implement this method
+            command=self.fetch_weather,
+            height=28,  # Reduced height
+            width=100  # Reduced width
         )
-        get_weather_btn.pack(side="left", padx=5, pady=5)
+        get_weather_btn.pack(side="left", padx=2, pady=2)  # Reduced padding
         
         # Weather display
         self.weather_display = ctk.CTkFrame(self.weather_content)
-        self.weather_display.pack(fill="both", expand=True, padx=10, pady=10)
+        self.weather_display.pack(fill="both", expand=True, padx=5, pady=2)  # Reduced padding
         
         self.weather_icon_label = ctk.CTkLabel(
             self.weather_display,
             text="☀️",  # Default icon
-            font=ctk.CTkFont(size=48)
+            font=ctk.CTkFont(size=36)  # Smaller font
         )
-        self.weather_icon_label.pack(pady=10)
+        self.weather_icon_label.pack(pady=5)  # Reduced padding
         
         self.temperature_label = ctk.CTkLabel(
             self.weather_display,
             text="-- °C",
-            font=ctk.CTkFont(size=24, weight="bold")
+            font=ctk.CTkFont(size=18, weight="bold")  # Smaller font
         )
-        self.temperature_label.pack(pady=5)
+        self.temperature_label.pack(pady=2)  # Reduced padding
         
         self.condition_label = ctk.CTkLabel(
             self.weather_display,
             text="--",
-            font=ctk.CTkFont(size=16)
+            font=ctk.CTkFont(size=14)  # Smaller font
         )
-        self.condition_label.pack(pady=5)
+        self.condition_label.pack(pady=2)  # Reduced padding
         
         self.details_frame = ctk.CTkFrame(self.weather_display)
-        self.details_frame.pack(fill="x", padx=10, pady=10)
+        self.details_frame.pack(fill="x", padx=5, pady=2)  # Reduced padding
         
         self.humidity_label = ctk.CTkLabel(
             self.details_frame,
             text="Humidity: --%",
-            font=ctk.CTkFont(size=14),
+            font=ctk.CTkFont(size=12),  # Smaller font
             anchor="w"
         )
-        self.humidity_label.pack(fill="x", pady=2)
+        self.humidity_label.pack(fill="x", pady=1)  # Reduced padding
         
         self.wind_label = ctk.CTkLabel(
             self.details_frame,
             text="Wind: -- km/h",
-            font=ctk.CTkFont(size=14),
+            font=ctk.CTkFont(size=12),  # Smaller font
             anchor="w"
         )
-        self.wind_label.pack(fill="x", pady=2)
+        self.wind_label.pack(fill="x", pady=1)  # Reduced padding
         
         self.last_updated_label = ctk.CTkLabel(
             self.weather_display,
             text="Last updated: --",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=10),  # Smaller font
             text_color="gray"
         )
-        self.last_updated_label.pack(pady=5)
+        self.last_updated_label.pack(pady=2)  # Reduced padding
         
         # Create right frame for utilities
         utilities_frame = ctk.CTkFrame(features_frame)
-        utilities_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        utilities_frame.pack(side="left", fill="both", expand=True, padx=2, pady=2)  # Reduced padding
         
         utilities_title = ctk.CTkLabel(
             utilities_frame,
             text="🛠️ Utility Tools",
-            font=ctk.CTkFont(size=18, weight="bold")
+            font=ctk.CTkFont(size=14, weight="bold")  # Smaller font
         )
-        utilities_title.pack(anchor="nw", padx=10, pady=10)
+        utilities_title.pack(anchor="nw", padx=8, pady=5)  # Reduced padding
         
         # System utilities scrollable frame
-        utilities_scroll = ctk.CTkScrollableFrame(utilities_frame)
-        utilities_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        utilities_scroll = ctk.CTkScrollableFrame(utilities_frame, height=200)  # Fixed height
+        utilities_scroll.pack(fill="both", expand=True, padx=5, pady=2)  # Reduced padding
         
         # Restart Explorer
         explorer_frame = ctk.CTkFrame(utilities_scroll)
-        explorer_frame.pack(fill="x", padx=5, pady=5)
+        explorer_frame.pack(fill="x", padx=2, pady=2)  # Reduced padding
         
         explorer_label = ctk.CTkLabel(
             explorer_frame,
             text="Restart Windows Explorer",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),  # Smaller font
             anchor="w"
         )
-        explorer_label.pack(fill="x", padx=10, pady=5)
+        explorer_label.pack(fill="x", padx=8, pady=2)  # Reduced padding
         
         explorer_desc = ctk.CTkLabel(
             explorer_frame,
             text="Fix unresponsive taskbar or desktop",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=10),  # Smaller font
             text_color="gray",
             anchor="w"
         )
-        explorer_desc.pack(fill="x", padx=10, pady=0)
+        explorer_desc.pack(fill="x", padx=8, pady=0)
         
         restart_explorer_btn = ctk.CTkButton(
             explorer_frame,
             text="Restart Explorer",
-            command=self.restart_explorer  # We'll implement this method
+            command=self.restart_explorer,
+            height=26,  # Reduced height
+            font=ctk.CTkFont(size=11)  # Smaller font
         )
-        restart_explorer_btn.pack(padx=10, pady=10)
+        restart_explorer_btn.pack(padx=8, pady=5)  # Reduced padding
         
         # Reset Network
         network_frame = ctk.CTkFrame(utilities_scroll)
-        network_frame.pack(fill="x", padx=5, pady=5)
+        network_frame.pack(fill="x", padx=2, pady=2)  # Reduced padding
         
         network_label = ctk.CTkLabel(
             network_frame,
             text="Reset Network Adapter",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),  # Smaller font
             anchor="w"
         )
-        network_label.pack(fill="x", padx=10, pady=5)
+        network_label.pack(fill="x", padx=8, pady=2)  # Reduced padding
         
         network_desc = ctk.CTkLabel(
             network_frame,
             text="Fix connectivity issues",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=10),  # Smaller font
             text_color="gray",
             anchor="w"
         )
-        network_desc.pack(fill="x", padx=10, pady=0)
+        network_desc.pack(fill="x", padx=8, pady=0)
         
         reset_network_btn = ctk.CTkButton(
             network_frame,
             text="Reset Network",
-            command=self.reset_network  # We'll implement this method
+            command=self.reset_network,
+            height=26,  # Reduced height
+            font=ctk.CTkFont(size=11)  # Smaller font
         )
-        reset_network_btn.pack(padx=10, pady=10)
+        reset_network_btn.pack(padx=8, pady=5)  # Reduced padding
         
         # System info
         sysinfo_frame = ctk.CTkFrame(utilities_scroll)
-        sysinfo_frame.pack(fill="x", padx=5, pady=5)
+        sysinfo_frame.pack(fill="x", padx=2, pady=2)  # Reduced padding
         
         sysinfo_label = ctk.CTkLabel(
             sysinfo_frame,
             text="System Information",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),  # Smaller font
             anchor="w"
         )
-        sysinfo_label.pack(fill="x", padx=10, pady=5)
+        sysinfo_label.pack(fill="x", padx=8, pady=2)  # Reduced padding
         
         sysinfo_desc = ctk.CTkLabel(
             sysinfo_frame,
             text="View detailed system information",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(size=10),  # Smaller font
             text_color="gray",
             anchor="w"
         )
-        sysinfo_desc.pack(fill="x", padx=10, pady=0)
+        sysinfo_desc.pack(fill="x", padx=8, pady=0)
         
         sysinfo_btn = ctk.CTkButton(
             sysinfo_frame,
             text="Show System Info",
-            command=self.show_system_info  # We'll implement this method
+            command=self.show_system_info,
+            height=26,  # Reduced height
+            font=ctk.CTkFont(size=11)  # Smaller font
         )
-        sysinfo_btn.pack(padx=10, pady=10)
+        sysinfo_btn.pack(padx=8, pady=5)  # Reduced padding
         
-        # Add a quick note section
+        # Add a quick note section (more compact version)
         notes_frame = ctk.CTkFrame(utilities_scroll)
-        notes_frame.pack(fill="x", padx=5, pady=5)
+        notes_frame.pack(fill="x", padx=2, pady=2)  # Reduced padding
         
         notes_label = ctk.CTkLabel(
             notes_frame,
             text="Quick Notes",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),  # Smaller font
             anchor="w"
         )
-        notes_label.pack(fill="x", padx=10, pady=5)
+        notes_label.pack(fill="x", padx=8, pady=2)  # Reduced padding
         
         self.notes_text = ctk.CTkTextbox(
             notes_frame,
-            height=100,
-            font=ctk.CTkFont(family="Segoe UI", size=12)
+            height=60,  # Reduced height
+            font=ctk.CTkFont(family="Segoe UI", size=10)  # Smaller font
         )
-        self.notes_text.pack(fill="x", padx=10, pady=5)
+        self.notes_text.pack(fill="x", padx=8, pady=2)  # Reduced padding
         
         notes_buttons_frame = ctk.CTkFrame(notes_frame, fg_color="transparent")
-        notes_buttons_frame.pack(fill="x", padx=10, pady=5)
+        notes_buttons_frame.pack(fill="x", padx=8, pady=2)  # Reduced padding
         
         save_notes_btn = ctk.CTkButton(
             notes_buttons_frame,
-            text="Save Notes",
-            command=self.save_notes,  # We'll implement this method
-            width=100
+            text="Save",
+            command=self.save_notes,
+            width=60,  # Reduced width
+            height=24,  # Reduced height
+            font=ctk.CTkFont(size=11)  # Smaller font
         )
-        save_notes_btn.pack(side="left", padx=5, pady=5)
+        save_notes_btn.pack(side="left", padx=2, pady=2)  # Reduced padding
         
         clear_notes_btn = ctk.CTkButton(
             notes_buttons_frame,
             text="Clear",
-            command=self.clear_notes,  # We'll implement this method
+            command=self.clear_notes,
             fg_color="gray",
-            width=80
+            width=60,  # Reduced width
+            height=24,  # Reduced height
+            font=ctk.CTkFont(size=11)  # Smaller font
         )
-        clear_notes_btn.pack(side="left", padx=5, pady=5)
+        clear_notes_btn.pack(side="left", padx=2, pady=2)  # Reduced padding
         
         # Try to fetch weather on startup
         self.after(1000, self.fetch_weather)
@@ -3711,45 +3725,48 @@ class TurboLearnGUI(ctk.CTk):
             }
         }
         
+        # Set the schedule frame to fixed height to prevent excessive expansion
+        self.schedule_container.configure(height=660)  # Reduced height (was previously unconstrained)
+        
         # Create time period labels on the left
         for i, time_slot in enumerate(time_slots):
             # Create time label frame
-            time_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
-            time_frame.grid(row=i+1, column=0, sticky="nsew", padx=1, pady=1)
+            time_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent", height=60)  # Fixed height
+            time_frame.grid(row=i+1, column=0, sticky="nsew", padx=1, pady=0)  # Reduced padding
             
             # Add time label
             if time_slot["type"] != "lunch":
                 time_label = ctk.CTkLabel(
                     time_frame,
                     text=time_slot["time"],
-                    font=ctk.CTkFont(size=12),
-                    width=100,
+                    font=ctk.CTkFont(size=10),  # Smaller font
+                    width=90,  # Narrower
                     anchor="e"
                 )
-                time_label.pack(side="left", padx=5, pady=10)
+                time_label.pack(side="left", padx=2, pady=2)  # Reduced padding
                 
                 # Add period label if it's a class period
                 if time_slot["type"] == "class":
                     period_label = ctk.CTkLabel(
                         time_frame,
-                        text=f"Period {time_slot['period']}",
-                        font=ctk.CTkFont(size=12, weight="bold"),
+                        text=f"P{time_slot['period']}",  # Shorter text
+                        font=ctk.CTkFont(size=10, weight="bold"),  # Smaller font
                         anchor="w"
                     )
-                    period_label.pack(side="right", padx=5, pady=10)
+                    period_label.pack(side="right", padx=2, pady=2)  # Reduced padding
         
         # Add day headers
         for i, day in enumerate(days):
-            day_frame = ctk.CTkFrame(self.schedule_container, fg_color="#f0f0f0")
-            day_frame.grid(row=0, column=i+1, sticky="nsew", padx=1, pady=1)
+            day_frame = ctk.CTkFrame(self.schedule_container, fg_color="#f0f0f0", height=30)  # Fixed height
+            day_frame.grid(row=0, column=i+1, sticky="nsew", padx=1, pady=0)  # Reduced padding
             
             day_label = ctk.CTkLabel(
                 day_frame,
                 text=day,
-                font=ctk.CTkFont(size=14, weight="bold"),
+                font=ctk.CTkFont(size=12, weight="bold"),  # Smaller font
                 text_color="#333333"
             )
-            day_label.pack(pady=10)
+            day_label.pack(pady=4)  # Reduced padding
             
             # Highlight current day
             if day == datetime.now().strftime("%A"):
@@ -3758,16 +3775,16 @@ class TurboLearnGUI(ctk.CTk):
                 
         # Add lunch row
         lunch_row = time_slots.index(next((ts for ts in time_slots if ts["type"] == "lunch"), None)) + 1
-        lunch_frame = ctk.CTkFrame(self.schedule_container, fg_color="#000000", height=40)
-        lunch_frame.grid(row=lunch_row, column=1, columnspan=len(days), sticky="nsew", padx=1, pady=1)
+        lunch_frame = ctk.CTkFrame(self.schedule_container, fg_color="#000000", height=30)  # Fixed height
+        lunch_frame.grid(row=lunch_row, column=1, columnspan=len(days), sticky="nsew", padx=1, pady=0)  # Reduced padding
         
         lunch_label = ctk.CTkLabel(
             lunch_frame,
             text="LUNCH (12:30 - 1:20 PM)",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ctk.CTkFont(size=12, weight="bold"),  # Smaller font
             text_color="#ffffff"
         )
-        lunch_label.pack(pady=10)
+        lunch_label.pack(pady=4)  # Reduced padding
             
         # Add schedule grid for each day and time slot
         for i, time_slot in enumerate(time_slots):
@@ -3788,32 +3805,33 @@ class TurboLearnGUI(ctk.CTk):
                     class_frame = ctk.CTkFrame(
                         self.schedule_container, 
                         fg_color=colors["bg"],
-                        corner_radius=0
+                        corner_radius=0,
+                        height=60  # Fixed height
                     )
                     class_frame.grid(
                         row=i+1, 
                         column=day_idx+1, 
                         sticky="nsew",
-                        padx=1, pady=1
+                        padx=1, pady=0  # Reduced padding
                     )
                     
                     # Add subject label
                     subject_label = ctk.CTkLabel(
                         class_frame,
                         text=class_data["subject"],
-                        font=ctk.CTkFont(size=12, weight="bold"),
+                        font=ctk.CTkFont(size=11, weight="bold"),  # Smaller font
                         text_color=colors["text"]
                     )
-                    subject_label.pack(anchor="center", padx=5, pady=(5, 0))
+                    subject_label.pack(anchor="center", padx=2, pady=(2, 0))  # Reduced padding
                     
                     # Add teacher label
                     teacher_label = ctk.CTkLabel(
                         class_frame,
                         text=class_data["teacher"],
-                        font=ctk.CTkFont(size=10),
+                        font=ctk.CTkFont(size=9),  # Smaller font
                         text_color=colors["text"]
                     )
-                    teacher_label.pack(anchor="center", padx=5, pady=(0, 5))
+                    teacher_label.pack(anchor="center", padx=2, pady=(0, 2))  # Reduced padding
                     
                     # Make the class cell clickable
                     class_frame.bind("<Button-1>", lambda e, d=day, t=time_slot["time"]: 
@@ -3824,12 +3842,16 @@ class TurboLearnGUI(ctk.CTk):
                                       self.show_class_details(d, t))
                 else:
                     # Create empty cell
-                    empty_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
+                    empty_frame = ctk.CTkFrame(
+                        self.schedule_container, 
+                        fg_color="transparent",
+                        height=60  # Fixed height
+                    )
                     empty_frame.grid(
                         row=i+1, 
                         column=day_idx+1, 
                         sticky="nsew",
-                        padx=1, pady=1
+                        padx=1, pady=0  # Reduced padding
                     )
                     
                     # Make empty cell clickable to add a class
@@ -3838,8 +3860,9 @@ class TurboLearnGUI(ctk.CTk):
                                         self.add_new_class(d, t))
         
         # Configure row and column weights to make cells expand properly
+        # But ensure they don't expand too much
         for i in range(len(time_slots) + 1):
-            self.schedule_container.grid_rowconfigure(i, weight=1)
+            self.schedule_container.grid_rowconfigure(i, weight=0)  # Changed from 1 to 0 to prevent expansion
             
         for i in range(len(days) + 1):
             self.schedule_container.grid_columnconfigure(i, weight=1)
