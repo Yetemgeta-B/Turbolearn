@@ -21,6 +21,7 @@ python-dotenv==1.0.0
 colorama==0.4.6
 pyperclip==1.8.2
 pywin32==306  # For Windows shortcut creation
+psutil==5.9.5  # For system information display
 
 # Mobile / Web Interface
 pyngrok==6.0.0  # For exposing local server to internet

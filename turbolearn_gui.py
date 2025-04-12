@@ -627,6 +627,7 @@ class TurboLearnGUI(ctk.CTk):
         self.tabview.pack(fill="both", expand=True, padx=10, pady=5)  # Reduced padding
         
         # Create tabs
+        self.tab_home = self.tabview.add("Home")
         self.tab_automation = self.tabview.add("Automation")
         self.tab_dashboard = self.tabview.add("Dashboard")
         self.tab_visualization = self.tabview.add("Analytics")
@@ -636,13 +637,14 @@ class TurboLearnGUI(ctk.CTk):
         self.tab_dashboard.configure(fg_color="transparent")
         
         # Setup tabs
+        self.setup_home_tab()
         self.setup_automation_tab()
         self.setup_dashboard_tab()
         self.setup_visualization_tab()
         self.setup_settings_tab()
         
         # Set default tab
-        self.tabview.set("Automation")
+        self.tabview.set("Home")
         
     def setup_automation_tab(self):
         # Create left and right frames
@@ -3123,6 +3125,1067 @@ class TurboLearnGUI(ctk.CTk):
         
         # Schedule the next check (every 300ms)
         self.after(300, self.check_current_tab)
+
+    def setup_home_tab(self):
+        """Setup the Home tab with student utilities: schedule, weather, and system tools"""
+        # Main container
+        main_frame = ctk.CTkFrame(self.tab_home)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create top row with welcome message and date/time
+        top_frame = ctk.CTkFrame(main_frame)
+        top_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Welcome message
+        self.welcome_label = ctk.CTkLabel(
+            top_frame,
+            text="Welcome to TurboLearn Student Dashboard",
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        self.welcome_label.pack(side="left", padx=10, pady=10)
+        
+        # Date and time display
+        self.datetime_label = ctk.CTkLabel(
+            top_frame,
+            text="",
+            font=ctk.CTkFont(size=14)
+        )
+        self.datetime_label.pack(side="right", padx=10, pady=10)
+        
+        # Update time function
+        def update_time():
+            current_time = datetime.now().strftime("%A, %B %d, %Y  %H:%M:%S")
+            self.datetime_label.configure(text=current_time)
+            self.after(1000, update_time)  # Update every second
+        
+        # Start time update
+        update_time()
+        
+        # Create bottom container for the three main features
+        content_frame = ctk.CTkFrame(main_frame)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create left frame for class schedule
+        schedule_frame = ctk.CTkFrame(content_frame)
+        schedule_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        
+        # Schedule title frame with bright background
+        schedule_title_frame = ctk.CTkFrame(schedule_frame, fg_color="#c8ff00")
+        schedule_title_frame.pack(fill="x", padx=0, pady=(0, 10))
+        
+        schedule_title = ctk.CTkLabel(
+            schedule_title_frame,
+            text="schedule",
+            font=ctk.CTkFont(size=28, weight="bold"),
+            text_color="#6242f5",  # Purple text color
+            fg_color="transparent"
+        )
+        schedule_title.pack(pady=20)
+        
+        # Create the main schedule container
+        self.schedule_container = ctk.CTkFrame(schedule_frame)
+        self.schedule_container.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Display schedule in grid format
+        self.create_schedule_grid()
+        
+        # Add edit button for schedule
+        edit_schedule_btn = ctk.CTkButton(
+            schedule_frame,
+            text="Edit Schedule",
+            command=self.edit_schedule
+        )
+        edit_schedule_btn.pack(padx=10, pady=10)
+        
+        # Create middle frame for weather
+        weather_frame = ctk.CTkFrame(content_frame)
+        weather_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        
+        weather_title = ctk.CTkLabel(
+            weather_frame,
+            text="🌤️ Weather Updates",
+            font=ctk.CTkFont(size=18, weight="bold")
+        )
+        weather_title.pack(anchor="nw", padx=10, pady=10)
+        
+        # Weather content
+        self.weather_content = ctk.CTkFrame(weather_frame)
+        self.weather_content.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Location entry and button
+        location_frame = ctk.CTkFrame(self.weather_content)
+        location_frame.pack(fill="x", padx=10, pady=10)
+        
+        self.location_var = tk.StringVar(value="New York")
+        location_entry = ctk.CTkEntry(
+            location_frame,
+            placeholder_text="Enter city",
+            textvariable=self.location_var,
+            width=150
+        )
+        location_entry.pack(side="left", padx=5, pady=5)
+        
+        get_weather_btn = ctk.CTkButton(
+            location_frame,
+            text="Get Weather",
+            command=self.fetch_weather  # We'll implement this method
+        )
+        get_weather_btn.pack(side="left", padx=5, pady=5)
+        
+        # Weather display
+        self.weather_display = ctk.CTkFrame(self.weather_content)
+        self.weather_display.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        self.weather_icon_label = ctk.CTkLabel(
+            self.weather_display,
+            text="☀️",  # Default icon
+            font=ctk.CTkFont(size=48)
+        )
+        self.weather_icon_label.pack(pady=10)
+        
+        self.temperature_label = ctk.CTkLabel(
+            self.weather_display,
+            text="-- °C",
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        self.temperature_label.pack(pady=5)
+        
+        self.condition_label = ctk.CTkLabel(
+            self.weather_display,
+            text="--",
+            font=ctk.CTkFont(size=16)
+        )
+        self.condition_label.pack(pady=5)
+        
+        self.details_frame = ctk.CTkFrame(self.weather_display)
+        self.details_frame.pack(fill="x", padx=10, pady=10)
+        
+        self.humidity_label = ctk.CTkLabel(
+            self.details_frame,
+            text="Humidity: --%",
+            font=ctk.CTkFont(size=14),
+            anchor="w"
+        )
+        self.humidity_label.pack(fill="x", pady=2)
+        
+        self.wind_label = ctk.CTkLabel(
+            self.details_frame,
+            text="Wind: -- km/h",
+            font=ctk.CTkFont(size=14),
+            anchor="w"
+        )
+        self.wind_label.pack(fill="x", pady=2)
+        
+        self.last_updated_label = ctk.CTkLabel(
+            self.weather_display,
+            text="Last updated: --",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        self.last_updated_label.pack(pady=5)
+        
+        # Create right frame for utilities
+        utilities_frame = ctk.CTkFrame(content_frame)
+        utilities_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        
+        utilities_title = ctk.CTkLabel(
+            utilities_frame,
+            text="🛠️ Utility Tools",
+            font=ctk.CTkFont(size=18, weight="bold")
+        )
+        utilities_title.pack(anchor="nw", padx=10, pady=10)
+        
+        # System utilities scrollable frame
+        utilities_scroll = ctk.CTkScrollableFrame(utilities_frame)
+        utilities_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Restart Explorer
+        explorer_frame = ctk.CTkFrame(utilities_scroll)
+        explorer_frame.pack(fill="x", padx=5, pady=5)
+        
+        explorer_label = ctk.CTkLabel(
+            explorer_frame,
+            text="Restart Windows Explorer",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        explorer_label.pack(fill="x", padx=10, pady=5)
+        
+        explorer_desc = ctk.CTkLabel(
+            explorer_frame,
+            text="Fix unresponsive taskbar or desktop",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            anchor="w"
+        )
+        explorer_desc.pack(fill="x", padx=10, pady=0)
+        
+        restart_explorer_btn = ctk.CTkButton(
+            explorer_frame,
+            text="Restart Explorer",
+            command=self.restart_explorer  # We'll implement this method
+        )
+        restart_explorer_btn.pack(padx=10, pady=10)
+        
+        # Reset Network
+        network_frame = ctk.CTkFrame(utilities_scroll)
+        network_frame.pack(fill="x", padx=5, pady=5)
+        
+        network_label = ctk.CTkLabel(
+            network_frame,
+            text="Reset Network Adapter",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        network_label.pack(fill="x", padx=10, pady=5)
+        
+        network_desc = ctk.CTkLabel(
+            network_frame,
+            text="Fix connectivity issues",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            anchor="w"
+        )
+        network_desc.pack(fill="x", padx=10, pady=0)
+        
+        reset_network_btn = ctk.CTkButton(
+            network_frame,
+            text="Reset Network",
+            command=self.reset_network  # We'll implement this method
+        )
+        reset_network_btn.pack(padx=10, pady=10)
+        
+        # System info
+        sysinfo_frame = ctk.CTkFrame(utilities_scroll)
+        sysinfo_frame.pack(fill="x", padx=5, pady=5)
+        
+        sysinfo_label = ctk.CTkLabel(
+            sysinfo_frame,
+            text="System Information",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        sysinfo_label.pack(fill="x", padx=10, pady=5)
+        
+        sysinfo_desc = ctk.CTkLabel(
+            sysinfo_frame,
+            text="View detailed system information",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            anchor="w"
+        )
+        sysinfo_desc.pack(fill="x", padx=10, pady=0)
+        
+        sysinfo_btn = ctk.CTkButton(
+            sysinfo_frame,
+            text="Show System Info",
+            command=self.show_system_info  # We'll implement this method
+        )
+        sysinfo_btn.pack(padx=10, pady=10)
+        
+        # Add a quick note section
+        notes_frame = ctk.CTkFrame(utilities_scroll)
+        notes_frame.pack(fill="x", padx=5, pady=5)
+        
+        notes_label = ctk.CTkLabel(
+            notes_frame,
+            text="Quick Notes",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        notes_label.pack(fill="x", padx=10, pady=5)
+        
+        self.notes_text = ctk.CTkTextbox(
+            notes_frame,
+            height=100,
+            font=ctk.CTkFont(family="Segoe UI", size=12)
+        )
+        self.notes_text.pack(fill="x", padx=10, pady=5)
+        
+        notes_buttons_frame = ctk.CTkFrame(notes_frame, fg_color="transparent")
+        notes_buttons_frame.pack(fill="x", padx=10, pady=5)
+        
+        save_notes_btn = ctk.CTkButton(
+            notes_buttons_frame,
+            text="Save Notes",
+            command=self.save_notes,  # We'll implement this method
+            width=100
+        )
+        save_notes_btn.pack(side="left", padx=5, pady=5)
+        
+        clear_notes_btn = ctk.CTkButton(
+            notes_buttons_frame,
+            text="Clear",
+            command=self.clear_notes,  # We'll implement this method
+            fg_color="gray",
+            width=80
+        )
+        clear_notes_btn.pack(side="left", padx=5, pady=5)
+        
+        # Try to fetch weather on startup
+        self.after(1000, self.fetch_weather)
+    
+    def edit_schedule(self):
+        """Opens dialog to edit class schedule"""
+        # This would be implemented to allow editing of schedule data
+        self.show_message("Info", "Schedule editing will be implemented in a future update.")
+    
+    def fetch_weather(self):
+        """Fetches weather data from OpenWeatherMap API"""
+        try:
+            import requests
+            import json
+            from datetime import datetime
+            
+            city = self.location_var.get()
+            if not city:
+                city = "New York"  # Default city
+                
+            # This would use a real API key in production
+            # For now, we'll simulate the response
+            
+            # Simulated weather data
+            weather_data = {
+                "main": {
+                    "temp": 22.5,
+                    "humidity": 65
+                },
+                "weather": [
+                    {
+                        "main": "Partly Cloudy",
+                        "description": "partly cloudy with occasional sun"
+                    }
+                ],
+                "wind": {
+                    "speed": 12
+                },
+                "name": city
+            }
+            
+            # Update UI with weather data
+            temp = round(weather_data["main"]["temp"])
+            self.temperature_label.configure(text=f"{temp} °C")
+            
+            condition = weather_data["weather"][0]["main"]
+            self.condition_label.configure(text=f"{condition}")
+            
+            # Set weather icon based on condition
+            if "clear" in condition.lower():
+                self.weather_icon_label.configure(text="☀️")
+            elif "cloud" in condition.lower():
+                self.weather_icon_label.configure(text="🌤️")
+            elif "rain" in condition.lower():
+                self.weather_icon_label.configure(text="🌧️")
+            elif "snow" in condition.lower():
+                self.weather_icon_label.configure(text="❄️")
+            elif "thunder" in condition.lower():
+                self.weather_icon_label.configure(text="⛈️")
+            elif "mist" in condition.lower() or "fog" in condition.lower():
+                self.weather_icon_label.configure(text="🌫️")
+            else:
+                self.weather_icon_label.configure(text="🌡️")
+                
+            # Update details
+            self.humidity_label.configure(text=f"Humidity: {weather_data['main']['humidity']}%")
+            self.wind_label.configure(text=f"Wind: {weather_data['wind']['speed']} km/h")
+            
+            # Update last updated time
+            now = datetime.now().strftime("%H:%M:%S")
+            self.last_updated_label.configure(text=f"Last updated: {now}")
+            
+        except Exception as e:
+            print(f"Error fetching weather: {e}")
+            self.temperature_label.configure(text="-- °C")
+            self.condition_label.configure(text="Weather data unavailable")
+            self.weather_icon_label.configure(text="❓")
+    
+    def restart_explorer(self):
+        """Restarts Windows Explorer process"""
+        try:
+            import subprocess
+            import threading
+            
+            def restart_process():
+                # Kill explorer process
+                subprocess.run(["taskkill", "/f", "/im", "explorer.exe"], 
+                               shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                
+                # Start explorer again
+                subprocess.Popen(["explorer.exe"], shell=True)
+                
+                # Update UI from main thread
+                self.after(0, lambda: self.show_message("Success", "Windows Explorer has been restarted"))
+            
+            # Run in separate thread to avoid freezing UI
+            threading.Thread(target=restart_process).start()
+            
+        except Exception as e:
+            self.show_message("Error", f"Failed to restart Explorer: {e}")
+    
+    def reset_network(self):
+        """Resets network adapters"""
+        try:
+            import subprocess
+            import threading
+            
+            def reset_network_process():
+                # Disable and enable network adapters
+                subprocess.run(["ipconfig", "/release"], 
+                               shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.run(["ipconfig", "/flushdns"], 
+                               shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                subprocess.run(["ipconfig", "/renew"], 
+                               shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                
+                # Update UI from main thread
+                self.after(0, lambda: self.show_message("Success", "Network has been reset"))
+            
+            # Run in separate thread to avoid freezing UI
+            threading.Thread(target=reset_network_process).start()
+            
+        except Exception as e:
+            self.show_message("Error", f"Failed to reset network: {e}")
+    
+    def show_system_info(self):
+        """Shows system information"""
+        try:
+            import platform
+            import psutil
+            
+            # Get system information
+            system = platform.system()
+            release = platform.release()
+            version = platform.version()
+            processor = platform.processor()
+            
+            # Get memory information
+            memory = psutil.virtual_memory()
+            memory_total = round(memory.total / (1024.0 ** 3), 2)  # Convert to GB
+            memory_used = round(memory.used / (1024.0 ** 3), 2)    # Convert to GB
+            memory_percent = memory.percent
+            
+            # Get disk information
+            disk = psutil.disk_usage('/')
+            disk_total = round(disk.total / (1024.0 ** 3), 2)      # Convert to GB
+            disk_used = round(disk.used / (1024.0 ** 3), 2)        # Convert to GB
+            disk_percent = disk.percent
+            
+            # Format system info message
+            info_message = f"System: {system} {release}\n"
+            info_message += f"Version: {version}\n"
+            info_message += f"Processor: {processor}\n\n"
+            info_message += f"Memory: {memory_used} GB / {memory_total} GB ({memory_percent}%)\n"
+            info_message += f"Disk: {disk_used} GB / {disk_total} GB ({disk_percent}%)"
+            
+            # Show system info in a dialog
+            self.show_message("System Information", info_message)
+            
+        except ImportError:
+            self.show_message("Error", "Required module not found. Please install 'psutil' package.")
+        except Exception as e:
+            self.show_message("Error", f"Failed to get system info: {e}")
+    
+    def save_notes(self):
+        """Saves quick notes to a file"""
+        try:
+            notes_content = self.notes_text.get("1.0", "end-1c")
+            
+            if not notes_content.strip():
+                self.show_message("Error", "No notes to save")
+                return
+                
+            from datetime import datetime
+            import os
+            
+            # Create notes directory if it doesn't exist
+            if not os.path.exists("notes"):
+                os.makedirs("notes")
+                
+            # Save notes with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"notes/note_{timestamp}.txt"
+            
+            with open(filename, "w") as f:
+                f.write(notes_content)
+                
+            self.show_message("Success", f"Notes saved to {filename}")
+            
+        except Exception as e:
+            self.show_message("Error", f"Failed to save notes: {e}")
+    
+    def clear_notes(self):
+        """Clears the notes text box"""
+        self.notes_text.delete("1.0", "end")
+        
+    def create_schedule_grid(self):
+        """Creates a grid-based schedule view with clickable subjects"""
+        # Clear existing widgets if any
+        for widget in self.schedule_container.winfo_children():
+            widget.destroy()
+            
+        # Define days of the week
+        days = ["MON", "TUE", "WEN", "THU", "FRI", "SAT"]
+        
+        # Define time slots
+        time_slots = [
+            {"start": "Morning", "blocks": 3},
+            {"start": "Afternoon", "blocks": 2},
+            {"start": "Lunch", "blocks": 1},
+            {"start": "Evening", "blocks": 3},
+            {"start": "Late", "blocks": 1}
+        ]
+        
+        # Define subject colors
+        subject_colors = {
+            "Social-A": {"bg": "#e0e0e0", "text": "#000000"},  # Gray
+            "History": {"bg": "#7fdbff", "text": "#000000"},   # Light blue
+            "English": {"bg": "#ffb74d", "text": "#000000"},   # Orange
+            "Civic": {"bg": "#f48fb1", "text": "#000000"},     # Pink
+            "Computer-S": {"bg": "#ff6b6b", "text": "#000000"}, # Red
+            "Math": {"bg": "#b388ff", "text": "#000000"},     # Purple
+            "Emerging-T": {"bg": "#b9f6ca", "text": "#000000"}, # Light green
+            "Food": {"bg": "#000000", "text": "#ffffff"},      # Black
+        }
+        
+        # Sample schedule data - this would be loaded from a file in a real implementation
+        self.schedule_data = {
+            "MON": [
+                {"subject": "Social-A", "room": "I4", "time": "4:30-6:20", "teacher": "Dr. Wilson"},
+                {"subject": "Social-A", "room": "I4", "time": "4:30-6:20", "teacher": "Dr. Wilson"},
+                {"subject": "Computer-S", "room": "Lab-6", "time": "7:30-9:30", "teacher": "Prof. Johnson"},
+                {"subject": "Computer-S", "room": "Lab-6", "time": "7:30-9:30", "teacher": "Prof. Johnson"},
+                None
+            ],
+            "TUE": [
+                {"subject": "History", "room": "J22", "time": "4:30-6:20", "teacher": "Dr. Smith"},
+                {"subject": "History", "room": "J22", "time": "4:30-6:20", "teacher": "Dr. Smith"},
+                None,
+                None,
+                None
+            ],
+            "WEN": [
+                {"subject": "English", "room": "J24", "time": "4:30-6:20", "teacher": "Ms. Brown"},
+                {"subject": "English", "room": "J24", "time": "4:30-6:20", "teacher": "Ms. Brown"},
+                None,
+                {"subject": "Math", "room": "J26", "time": "7:30-9:30", "teacher": "Dr. Adams"},
+                {"subject": "Math", "room": "J26", "time": "7:30-9:30", "teacher": "Dr. Adams"}
+            ],
+            "THU": [
+                {"subject": "Emerging-T", "room": "J28", "time": "2:30-4:30", "teacher": "Prof. Davis"},
+                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
+                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
+                {"subject": "Computer-S", "room": "J22", "time": "7:30-10:30", "teacher": "Prof. Johnson"},
+                {"subject": "Computer-S", "room": "J22", "time": "7:30-10:30", "teacher": "Prof. Johnson"}
+            ],
+            "FRI": [
+                None,
+                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
+                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
+                {"subject": "Math", "room": "I14", "time": "7:30-9:20", "teacher": "Dr. Adams"},
+                {"subject": "History", "room": "I4", "time": "9:20-10:20", "teacher": "Dr. Smith"}
+            ],
+            "SAT": [
+                {"subject": "English", "room": "J24", "time": "4:30-5:30", "teacher": "Ms. Brown"},
+                None,
+                None,
+                {"subject": "Emerging-T", "room": "C5", "time": "8:30-9:20", "teacher": "Prof. Davis"},
+                None
+            ]
+        }
+        
+        # Add day headers
+        for i, day in enumerate(days):
+            day_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
+            day_frame.grid(row=0, column=i+1, sticky="nsew", padx=1, pady=1)
+            
+            day_label = ctk.CTkLabel(
+                day_frame,
+                text=day,
+                font=ctk.CTkFont(size=14, weight="bold")
+            )
+            day_label.pack(pady=10)
+            
+            # Highlight current day
+            if day == datetime.now().strftime("%a").upper():
+                day_label.configure(text_color="#3b82f6")
+                
+        # Add schedule grid
+        current_row = 1
+        for time_slot in time_slots:
+            # Check if this is the lunch slot
+            if time_slot["start"] == "Lunch":
+                # Create a black food row spanning all columns
+                food_frame = ctk.CTkFrame(self.schedule_container, fg_color="#000000", height=40)
+                food_frame.grid(row=current_row, column=0, columnspan=len(days)+1, sticky="nsew", padx=1, pady=1)
+                
+                food_label = ctk.CTkLabel(
+                    food_frame,
+                    text="Food",
+                    font=ctk.CTkFont(size=16, weight="bold"),
+                    text_color="#ffffff"
+                )
+                food_label.pack(pady=10)
+                
+                self.schedule_container.grid_rowconfigure(current_row, weight=1)
+                current_row += 1
+                continue
+            
+            # Set row weight
+            for i in range(time_slot["blocks"]):
+                self.schedule_container.grid_rowconfigure(current_row + i, weight=1)
+            
+            # Add cells for each day
+            for day_idx, day in enumerate(days):
+                day_data = self.schedule_data[day]
+                
+                # Calculate the correct index in the day_data
+                data_idx = 0
+                for ts in time_slots[:time_slots.index(time_slot)]:
+                    data_idx += ts["blocks"]
+                
+                # Add blocks for this time slot
+                for block in range(time_slot["blocks"]):
+                    # Check if there's a class scheduled
+                    if data_idx < len(day_data) and day_data[data_idx] is not None:
+                        class_data = day_data[data_idx]
+                        
+                        # Get colors for the subject
+                        colors = subject_colors.get(class_data["subject"], {"bg": "#e0e0e0", "text": "#000000"})
+                        
+                        # Create the class cell
+                        class_frame = ctk.CTkFrame(
+                            self.schedule_container, 
+                            fg_color=colors["bg"],
+                            corner_radius=0
+                        )
+                        class_frame.grid(
+                            row=current_row + block, 
+                            column=day_idx + 1, 
+                            sticky="nsew",
+                            padx=1, pady=1
+                        )
+                        
+                        # Add subject label
+                        subject_label = ctk.CTkLabel(
+                            class_frame,
+                            text=class_data["subject"],
+                            font=ctk.CTkFont(size=12, weight="bold"),
+                            text_color=colors["text"]
+                        )
+                        subject_label.pack(anchor="w", padx=5, pady=(5, 0))
+                        
+                        # Add room label
+                        room_label = ctk.CTkLabel(
+                            class_frame,
+                            text=f"({class_data['room']})",
+                            font=ctk.CTkFont(size=11),
+                            text_color=colors["text"]
+                        )
+                        room_label.pack(anchor="w", padx=5, pady=(0, 0))
+                        
+                        # Add time label
+                        time_label = ctk.CTkLabel(
+                            class_frame,
+                            text=f"({class_data['time']})",
+                            font=ctk.CTkFont(size=10),
+                            text_color=colors["text"]
+                        )
+                        time_label.pack(anchor="e", padx=5, pady=(0, 5))
+                        
+                        # Make the class cell clickable
+                        class_frame.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
+                        subject_label.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
+                        room_label.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
+                        time_label.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
+                    else:
+                        # Create empty cell
+                        empty_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
+                        empty_frame.grid(
+                            row=current_row + block, 
+                            column=day_idx + 1, 
+                            sticky="nsew",
+                            padx=1, pady=1
+                        )
+                        
+                        # Make empty cell clickable to add a class
+                        empty_frame.bind("<Button-1>", lambda e, r=current_row+block, c=day_idx+1, d=day: 
+                                       self.add_new_class(r, c, d))
+                    
+                    data_idx += 1
+            
+            current_row += time_slot["blocks"]
+            
+        # Configure column weights
+        for i in range(len(days) + 1):
+            self.schedule_container.grid_columnconfigure(i, weight=1)
+            
+    def show_class_details(self, class_data):
+        """Shows a detailed card view for the selected class"""
+        # Create popup window for class details
+        self.class_popup = ctk.CTkToplevel(self)
+        self.class_popup.title(f"{class_data['subject']} Details")
+        self.class_popup.geometry("400x450")
+        self.class_popup.resizable(False, False)
+        self.class_popup.grab_set()  # Make window modal
+        
+        # Add subject header
+        subject_frame = ctk.CTkFrame(self.class_popup, fg_color="#3b82f6", corner_radius=0)
+        subject_frame.pack(fill="x", padx=0, pady=0)
+        
+        subject_label = ctk.CTkLabel(
+            subject_frame,
+            text=class_data["subject"],
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#ffffff"
+        )
+        subject_label.pack(pady=20)
+        
+        # Details container
+        details_frame = ctk.CTkFrame(self.class_popup)
+        details_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Class details
+        info_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
+        info_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Room
+        room_label = ctk.CTkLabel(
+            info_frame,
+            text="Room:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        room_label.grid(row=0, column=0, padx=5, pady=10, sticky="e")
+        
+        self.room_var = tk.StringVar(value=class_data["room"])
+        room_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.room_var,
+            width=200
+        )
+        room_entry.grid(row=0, column=1, padx=5, pady=10, sticky="w")
+        
+        # Time
+        time_label = ctk.CTkLabel(
+            info_frame,
+            text="Time:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        time_label.grid(row=1, column=0, padx=5, pady=10, sticky="e")
+        
+        self.time_var = tk.StringVar(value=class_data["time"])
+        time_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.time_var,
+            width=200
+        )
+        time_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+        
+        # Teacher
+        teacher_label = ctk.CTkLabel(
+            info_frame,
+            text="Teacher:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        teacher_label.grid(row=2, column=0, padx=5, pady=10, sticky="e")
+        
+        self.teacher_var = tk.StringVar(value=class_data["teacher"])
+        teacher_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.teacher_var,
+            width=200
+        )
+        teacher_entry.grid(row=2, column=1, padx=5, pady=10, sticky="w")
+        
+        # Notes
+        notes_label = ctk.CTkLabel(
+            details_frame,
+            text="Notes:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        notes_label.pack(anchor="w", padx=10, pady=(20, 5))
+        
+        self.notes_var = tk.StringVar(value=class_data.get("notes", ""))
+        notes_text = ctk.CTkTextbox(
+            details_frame,
+            height=100,
+            width=350
+        )
+        notes_text.pack(fill="x", padx=10, pady=5)
+        
+        # Add initial text if there are notes
+        if "notes" in class_data:
+            notes_text.insert("1.0", class_data["notes"])
+        
+        # Buttons
+        buttons_frame = ctk.CTkFrame(self.class_popup, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=20, pady=20)
+        
+        save_button = ctk.CTkButton(
+            buttons_frame,
+            text="Save Changes",
+            command=lambda: self.save_class_changes(
+                class_data,
+                self.room_var.get(),
+                self.time_var.get(),
+                self.teacher_var.get(),
+                notes_text.get("1.0", "end-1c")
+            )
+        )
+        save_button.pack(side="left", padx=10)
+        
+        delete_button = ctk.CTkButton(
+            buttons_frame,
+            text="Delete Class",
+            fg_color="#ef4444",
+            hover_color="#dc2626",
+            command=lambda: self.delete_class(class_data)
+        )
+        delete_button.pack(side="right", padx=10)
+        
+    def save_class_changes(self, class_data, room, time, teacher, notes):
+        """Saves changes made to a class"""
+        # Update class data
+        class_data["room"] = room
+        class_data["time"] = time
+        class_data["teacher"] = teacher
+        class_data["notes"] = notes
+        
+        # Close popup
+        self.class_popup.destroy()
+        
+        # Refresh the schedule grid
+        self.create_schedule_grid()
+        
+        # Show message
+        self.show_message("Success", f"Changes to {class_data['subject']} saved successfully")
+        
+    def delete_class(self, class_data):
+        """Deletes a class from the schedule"""
+        # Find and remove the class from schedule_data
+        for day, classes in self.schedule_data.items():
+            for i, cls in enumerate(classes):
+                if cls is not None and cls == class_data:
+                    self.schedule_data[day][i] = None
+                    break
+        
+        # Close popup
+        self.class_popup.destroy()
+        
+        # Refresh the schedule grid
+        self.create_schedule_grid()
+        
+        # Show message
+        self.show_message("Success", f"{class_data['subject']} removed from schedule")
+        
+    def add_new_class(self, row, col, day):
+        """Opens a dialog to add a new class to the schedule"""
+        # Create popup window for adding a new class
+        self.add_class_popup = ctk.CTkToplevel(self)
+        self.add_class_popup.title("Add New Class")
+        self.add_class_popup.geometry("400x450")
+        self.add_class_popup.resizable(False, False)
+        self.add_class_popup.grab_set()  # Make window modal
+        
+        # Add header
+        header_frame = ctk.CTkFrame(self.add_class_popup, fg_color="#3b82f6", corner_radius=0)
+        header_frame.pack(fill="x", padx=0, pady=0)
+        
+        header_label = ctk.CTkLabel(
+            header_frame,
+            text="Add New Class",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#ffffff"
+        )
+        header_label.pack(pady=20)
+        
+        # Details container
+        details_frame = ctk.CTkFrame(self.add_class_popup)
+        details_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Class details
+        info_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
+        info_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Subject
+        subject_label = ctk.CTkLabel(
+            info_frame,
+            text="Subject:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        subject_label.grid(row=0, column=0, padx=5, pady=10, sticky="e")
+        
+        subjects = ["Social-A", "History", "English", "Civic", "Computer-S", "Math", "Emerging-T"]
+        self.subject_var = tk.StringVar(value=subjects[0])
+        subject_dropdown = ctk.CTkOptionMenu(
+            info_frame,
+            values=subjects,
+            variable=self.subject_var,
+            width=200
+        )
+        subject_dropdown.grid(row=0, column=1, padx=5, pady=10, sticky="w")
+        
+        # Room
+        room_label = ctk.CTkLabel(
+            info_frame,
+            text="Room:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        room_label.grid(row=1, column=0, padx=5, pady=10, sticky="e")
+        
+        self.room_var = tk.StringVar()
+        room_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.room_var,
+            width=200
+        )
+        room_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+        
+        # Time
+        time_label = ctk.CTkLabel(
+            info_frame,
+            text="Time:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        time_label.grid(row=2, column=0, padx=5, pady=10, sticky="e")
+        
+        self.time_var = tk.StringVar()
+        time_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.time_var,
+            width=200
+        )
+        time_entry.grid(row=2, column=1, padx=5, pady=10, sticky="w")
+        
+        # Teacher
+        teacher_label = ctk.CTkLabel(
+            info_frame,
+            text="Teacher:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        teacher_label.grid(row=3, column=0, padx=5, pady=10, sticky="e")
+        
+        self.teacher_var = tk.StringVar()
+        teacher_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.teacher_var,
+            width=200
+        )
+        teacher_entry.grid(row=3, column=1, padx=5, pady=10, sticky="w")
+        
+        # Notes
+        notes_label = ctk.CTkLabel(
+            details_frame,
+            text="Notes:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        )
+        notes_label.pack(anchor="w", padx=10, pady=(20, 5))
+        
+        notes_text = ctk.CTkTextbox(
+            details_frame,
+            height=100,
+            width=350
+        )
+        notes_text.pack(fill="x", padx=10, pady=5)
+        
+        # Buttons
+        buttons_frame = ctk.CTkFrame(self.add_class_popup, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=20, pady=20)
+        
+        add_button = ctk.CTkButton(
+            buttons_frame,
+            text="Add Class",
+            command=lambda: self.save_new_class(
+                day,
+                row,
+                col,
+                self.subject_var.get(),
+                self.room_var.get(),
+                self.time_var.get(),
+                self.teacher_var.get(),
+                notes_text.get("1.0", "end-1c")
+            )
+        )
+        add_button.pack(side="left", padx=10)
+        
+        cancel_button = ctk.CTkButton(
+            buttons_frame,
+            text="Cancel",
+            fg_color="#6b7280",
+            hover_color="#4b5563",
+            command=lambda: self.add_class_popup.destroy()
+        )
+        cancel_button.pack(side="right", padx=10)
+        
+    def save_new_class(self, day, row, col, subject, room, time, teacher, notes):
+        """Saves a new class to the schedule"""
+        # Create new class data
+        new_class = {
+            "subject": subject,
+            "room": room,
+            "time": time,
+            "teacher": teacher,
+            "notes": notes
+        }
+        
+        # Calculate the index in the day's data
+        idx = 0
+        current_row = 1
+        for time_slot in [
+            {"start": "Morning", "blocks": 3},
+            {"start": "Afternoon", "blocks": 2},
+            {"start": "Lunch", "blocks": 1},
+            {"start": "Evening", "blocks": 3},
+            {"start": "Late", "blocks": 1}
+        ]:
+            if time_slot["start"] == "Lunch":
+                current_row += 1
+                continue
+                
+            for i in range(time_slot["blocks"]):
+                if current_row == row:
+                    idx += i
+                    break
+                
+            if current_row == row:
+                break
+                
+            current_row += time_slot["blocks"]
+            idx += time_slot["blocks"]
+        
+        # Add the class to the schedule data
+        if idx < len(self.schedule_data[day]):
+            self.schedule_data[day][idx] = new_class
+        
+        # Close popup
+        self.add_class_popup.destroy()
+        
+        # Refresh the schedule grid
+        self.create_schedule_grid()
+        
+        # Show message
+        self.show_message("Success", f"{subject} added to schedule")
+        
+    def edit_schedule(self):
+        """Opens a new window to edit the entire schedule"""
+        # Here you could implement a more comprehensive schedule editor
+        # For now, we'll just show a message
+        self.show_message("Info", "Click on any class or empty cell to edit or add classes")
 
 if __name__ == "__main__":
     # Check if matplotlib is installed
