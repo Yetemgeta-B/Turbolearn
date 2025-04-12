@@ -3128,12 +3128,12 @@ class TurboLearnGUI(ctk.CTk):
 
     def setup_home_tab(self):
         """Setup the Home tab with student utilities: schedule, weather, and system tools"""
-        # Main container
-        main_frame = ctk.CTkFrame(self.tab_home)
-        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        # Main container with scrollable frame
+        self.home_scroll = ctk.CTkScrollableFrame(self.tab_home)
+        self.home_scroll.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Create top row with welcome message and date/time
-        top_frame = ctk.CTkFrame(main_frame)
+        top_frame = ctk.CTkFrame(self.home_scroll)
         top_frame.pack(fill="x", padx=10, pady=10)
         
         # Welcome message
@@ -3161,13 +3161,9 @@ class TurboLearnGUI(ctk.CTk):
         # Start time update
         update_time()
         
-        # Create bottom container for the three main features
-        content_frame = ctk.CTkFrame(main_frame)
-        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Create left frame for class schedule
-        schedule_frame = ctk.CTkFrame(content_frame)
-        schedule_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        # SCHEDULE SECTION - Main focal point
+        schedule_frame = ctk.CTkFrame(self.home_scroll)
+        schedule_frame.pack(fill="x", expand=True, padx=10, pady=10)
         
         # Schedule title frame with bright background
         schedule_title_frame = ctk.CTkFrame(schedule_frame, fg_color="#c8ff00")
@@ -3197,8 +3193,12 @@ class TurboLearnGUI(ctk.CTk):
         )
         edit_schedule_btn.pack(padx=10, pady=10)
         
+        # Create container for weather and utilities (will appear when scrolling down)
+        features_frame = ctk.CTkFrame(self.home_scroll)
+        features_frame.pack(fill="x", expand=True, padx=10, pady=10)
+        
         # Create middle frame for weather
-        weather_frame = ctk.CTkFrame(content_frame)
+        weather_frame = ctk.CTkFrame(features_frame)
         weather_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
         
         weather_title = ctk.CTkLabel(
@@ -3285,7 +3285,7 @@ class TurboLearnGUI(ctk.CTk):
         self.last_updated_label.pack(pady=5)
         
         # Create right frame for utilities
-        utilities_frame = ctk.CTkFrame(content_frame)
+        utilities_frame = ctk.CTkFrame(features_frame)
         utilities_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
         
         utilities_title = ctk.CTkLabel(
@@ -3624,221 +3624,276 @@ class TurboLearnGUI(ctk.CTk):
             widget.destroy()
             
         # Define days of the week
-        days = ["MON", "TUE", "WEN", "THU", "FRI", "SAT"]
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         
-        # Define time slots
+        # Define time slots - 4 periods before lunch, lunch, 4 periods after lunch (with one empty)
         time_slots = [
-            {"start": "Morning", "blocks": 3},
-            {"start": "Afternoon", "blocks": 2},
-            {"start": "Lunch", "blocks": 1},
-            {"start": "Evening", "blocks": 3},
-            {"start": "Late", "blocks": 1}
+            {"period": 1, "time": "8:30 - 9:20", "type": "class"},
+            {"period": 2, "time": "9:30 - 10:20", "type": "class"},
+            {"period": 3, "time": "10:30 - 11:20", "type": "class"},
+            {"period": 4, "time": "11:30 - 12:20", "type": "class"},
+            {"period": "Lunch", "time": "12:30 - 1:20", "type": "lunch"},
+            {"period": 5, "time": "1:30 - 2:20", "type": "class"},
+            {"period": 6, "time": "2:30 - 3:20", "type": "class"},
+            {"period": 7, "time": "3:30 - 4:20", "type": "class"},
+            {"period": 8, "time": "", "type": "empty"}  # Empty period
         ]
         
         # Define subject colors
         subject_colors = {
-            "Social-A": {"bg": "#e0e0e0", "text": "#000000"},  # Gray
-            "History": {"bg": "#7fdbff", "text": "#000000"},   # Light blue
-            "English": {"bg": "#ffb74d", "text": "#000000"},   # Orange
-            "Civic": {"bg": "#f48fb1", "text": "#000000"},     # Pink
-            "Computer-S": {"bg": "#ff6b6b", "text": "#000000"}, # Red
-            "Math": {"bg": "#b388ff", "text": "#000000"},     # Purple
-            "Emerging-T": {"bg": "#b9f6ca", "text": "#000000"}, # Light green
-            "Food": {"bg": "#000000", "text": "#ffffff"},      # Black
+            "Mathematics": {"bg": "#b388ff", "text": "#000000"},     # Purple
+            "Physics": {"bg": "#7fdbff", "text": "#000000"},        # Light blue
+            "Computer Science": {"bg": "#ff6b6b", "text": "#000000"}, # Red
+            "English": {"bg": "#ffb74d", "text": "#000000"},        # Orange
+            "Chemistry": {"bg": "#aed581", "text": "#000000"},      # Green
+            "Biology": {"bg": "#4db6ac", "text": "#000000"},        # Teal
+            "History": {"bg": "#f48fb1", "text": "#000000"},        # Pink
+            "Geography": {"bg": "#90a4ae", "text": "#000000"},      # Blue Gray
+            "Art": {"bg": "#ffe082", "text": "#000000"},           # Amber
+            "Physical Education": {"bg": "#e0e0e0", "text": "#000000"}, # Gray
         }
         
         # Sample schedule data - this would be loaded from a file in a real implementation
         self.schedule_data = {
-            "MON": [
-                {"subject": "Social-A", "room": "I4", "time": "4:30-6:20", "teacher": "Dr. Wilson"},
-                {"subject": "Social-A", "room": "I4", "time": "4:30-6:20", "teacher": "Dr. Wilson"},
-                {"subject": "Computer-S", "room": "Lab-6", "time": "7:30-9:30", "teacher": "Prof. Johnson"},
-                {"subject": "Computer-S", "room": "Lab-6", "time": "7:30-9:30", "teacher": "Prof. Johnson"},
-                None
-            ],
-            "TUE": [
-                {"subject": "History", "room": "J22", "time": "4:30-6:20", "teacher": "Dr. Smith"},
-                {"subject": "History", "room": "J22", "time": "4:30-6:20", "teacher": "Dr. Smith"},
-                None,
-                None,
-                None
-            ],
-            "WEN": [
-                {"subject": "English", "room": "J24", "time": "4:30-6:20", "teacher": "Ms. Brown"},
-                {"subject": "English", "room": "J24", "time": "4:30-6:20", "teacher": "Ms. Brown"},
-                None,
-                {"subject": "Math", "room": "J26", "time": "7:30-9:30", "teacher": "Dr. Adams"},
-                {"subject": "Math", "room": "J26", "time": "7:30-9:30", "teacher": "Dr. Adams"}
-            ],
-            "THU": [
-                {"subject": "Emerging-T", "room": "J28", "time": "2:30-4:30", "teacher": "Prof. Davis"},
-                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
-                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
-                {"subject": "Computer-S", "room": "J22", "time": "7:30-10:30", "teacher": "Prof. Johnson"},
-                {"subject": "Computer-S", "room": "J22", "time": "7:30-10:30", "teacher": "Prof. Johnson"}
-            ],
-            "FRI": [
-                None,
-                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
-                {"subject": "Civic", "room": "J24", "time": "4:30-6:20", "teacher": "Dr. Clark"},
-                {"subject": "Math", "room": "I14", "time": "7:30-9:20", "teacher": "Dr. Adams"},
-                {"subject": "History", "room": "I4", "time": "9:20-10:20", "teacher": "Dr. Smith"}
-            ],
-            "SAT": [
-                {"subject": "English", "room": "J24", "time": "4:30-5:30", "teacher": "Ms. Brown"},
-                None,
-                None,
-                {"subject": "Emerging-T", "room": "C5", "time": "8:30-9:20", "teacher": "Prof. Davis"},
-                None
-            ]
+            "Monday": {
+                "8:30 - 9:20": {"subject": "Mathematics", "teacher": "Dr. Smith"},
+                "9:30 - 10:20": {"subject": "Physics", "teacher": "Dr. Johnson"},
+                "10:30 - 11:20": {"subject": "English", "teacher": "Ms. Davis"},
+                "11:30 - 12:20": {"subject": "Computer Science", "teacher": "Prof. Wilson"},
+                "1:30 - 2:20": {"subject": "Chemistry", "teacher": "Dr. Roberts"},
+                "2:30 - 3:20": {"subject": "History", "teacher": "Prof. Adams"},
+                "3:30 - 4:20": {"subject": "Biology", "teacher": "Dr. Thompson"}
+            },
+            "Tuesday": {
+                "8:30 - 9:20": {"subject": "Physics", "teacher": "Dr. Johnson"},
+                "9:30 - 10:20": {"subject": "Mathematics", "teacher": "Dr. Smith"},
+                "10:30 - 11:20": {"subject": "Computer Science", "teacher": "Prof. Wilson"},
+                "11:30 - 12:20": {"subject": "English", "teacher": "Ms. Davis"},
+                "1:30 - 2:20": {"subject": "History", "teacher": "Prof. Adams"},
+                "2:30 - 3:20": {"subject": "Chemistry", "teacher": "Dr. Roberts"},
+                "3:30 - 4:20": {"subject": "Physical Education", "teacher": "Coach Brown"}
+            },
+            "Wednesday": {
+                "8:30 - 9:20": {"subject": "Biology", "teacher": "Dr. Thompson"},
+                "9:30 - 10:20": {"subject": "Chemistry", "teacher": "Dr. Roberts"},
+                "10:30 - 11:20": {"subject": "Mathematics", "teacher": "Dr. Smith"},
+                "11:30 - 12:20": {"subject": "History", "teacher": "Prof. Adams"},
+                "1:30 - 2:20": {"subject": "English", "teacher": "Ms. Davis"},
+                "2:30 - 3:20": {"subject": "Computer Science", "teacher": "Prof. Wilson"},
+                "3:30 - 4:20": {"subject": "Physics", "teacher": "Dr. Johnson"}
+            },
+            "Thursday": {
+                "8:30 - 9:20": {"subject": "Computer Science", "teacher": "Prof. Wilson"},
+                "9:30 - 10:20": {"subject": "English", "teacher": "Ms. Davis"},
+                "10:30 - 11:20": {"subject": "Physics", "teacher": "Dr. Johnson"},
+                "11:30 - 12:20": {"subject": "Mathematics", "teacher": "Dr. Smith"},
+                "1:30 - 2:20": {"subject": "Biology", "teacher": "Dr. Thompson"},
+                "2:30 - 3:20": {"subject": "Art", "teacher": "Ms. Parker"},
+                "3:30 - 4:20": {"subject": "Physical Education", "teacher": "Coach Brown"}
+            },
+            "Friday": {
+                "8:30 - 9:20": {"subject": "History", "teacher": "Prof. Adams"},
+                "9:30 - 10:20": {"subject": "Geography", "teacher": "Dr. Garcia"},
+                "10:30 - 11:20": {"subject": "Computer Science", "teacher": "Prof. Wilson"},
+                "11:30 - 12:20": {"subject": "Biology", "teacher": "Dr. Thompson"},
+                "1:30 - 2:20": {"subject": "Physics", "teacher": "Dr. Johnson"},
+                "2:30 - 3:20": {"subject": "Mathematics", "teacher": "Dr. Smith"},
+                "3:30 - 4:20": {"subject": "English", "teacher": "Ms. Davis"}
+            },
+            "Saturday": {
+                "8:30 - 9:20": {"subject": "Art", "teacher": "Ms. Parker"},
+                "9:30 - 10:20": {"subject": "Physical Education", "teacher": "Coach Brown"},
+                "10:30 - 11:20": None,
+                "11:30 - 12:20": None,
+                "1:30 - 2:20": None,
+                "2:30 - 3:20": None,
+                "3:30 - 4:20": None
+            }
         }
+        
+        # Create time period labels on the left
+        for i, time_slot in enumerate(time_slots):
+            # Create time label frame
+            time_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
+            time_frame.grid(row=i+1, column=0, sticky="nsew", padx=1, pady=1)
+            
+            # Add time label
+            if time_slot["type"] != "lunch":
+                time_label = ctk.CTkLabel(
+                    time_frame,
+                    text=time_slot["time"],
+                    font=ctk.CTkFont(size=12),
+                    width=100,
+                    anchor="e"
+                )
+                time_label.pack(side="left", padx=5, pady=10)
+                
+                # Add period label if it's a class period
+                if time_slot["type"] == "class":
+                    period_label = ctk.CTkLabel(
+                        time_frame,
+                        text=f"Period {time_slot['period']}",
+                        font=ctk.CTkFont(size=12, weight="bold"),
+                        anchor="w"
+                    )
+                    period_label.pack(side="right", padx=5, pady=10)
         
         # Add day headers
         for i, day in enumerate(days):
-            day_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
+            day_frame = ctk.CTkFrame(self.schedule_container, fg_color="#f0f0f0")
             day_frame.grid(row=0, column=i+1, sticky="nsew", padx=1, pady=1)
             
             day_label = ctk.CTkLabel(
                 day_frame,
                 text=day,
-                font=ctk.CTkFont(size=14, weight="bold")
+                font=ctk.CTkFont(size=14, weight="bold"),
+                text_color="#333333"
             )
             day_label.pack(pady=10)
             
             # Highlight current day
-            if day == datetime.now().strftime("%a").upper():
-                day_label.configure(text_color="#3b82f6")
+            if day == datetime.now().strftime("%A"):
+                day_frame.configure(fg_color="#e3f2fd")
+                day_label.configure(text_color="#1976d2")
                 
-        # Add schedule grid
-        current_row = 1
-        for time_slot in time_slots:
-            # Check if this is the lunch slot
-            if time_slot["start"] == "Lunch":
-                # Create a black food row spanning all columns
-                food_frame = ctk.CTkFrame(self.schedule_container, fg_color="#000000", height=40)
-                food_frame.grid(row=current_row, column=0, columnspan=len(days)+1, sticky="nsew", padx=1, pady=1)
-                
-                food_label = ctk.CTkLabel(
-                    food_frame,
-                    text="Food",
-                    font=ctk.CTkFont(size=16, weight="bold"),
-                    text_color="#ffffff"
-                )
-                food_label.pack(pady=10)
-                
-                self.schedule_container.grid_rowconfigure(current_row, weight=1)
-                current_row += 1
+        # Add lunch row
+        lunch_row = time_slots.index(next((ts for ts in time_slots if ts["type"] == "lunch"), None)) + 1
+        lunch_frame = ctk.CTkFrame(self.schedule_container, fg_color="#000000", height=40)
+        lunch_frame.grid(row=lunch_row, column=1, columnspan=len(days), sticky="nsew", padx=1, pady=1)
+        
+        lunch_label = ctk.CTkLabel(
+            lunch_frame,
+            text="LUNCH (12:30 - 1:20 PM)",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#ffffff"
+        )
+        lunch_label.pack(pady=10)
+            
+        # Add schedule grid for each day and time slot
+        for i, time_slot in enumerate(time_slots):
+            # Skip lunch row as we've already added it
+            if time_slot["type"] == "lunch":
                 continue
-            
-            # Set row weight
-            for i in range(time_slot["blocks"]):
-                self.schedule_container.grid_rowconfigure(current_row + i, weight=1)
-            
+                
             # Add cells for each day
             for day_idx, day in enumerate(days):
-                day_data = self.schedule_data[day]
-                
-                # Calculate the correct index in the day_data
-                data_idx = 0
-                for ts in time_slots[:time_slots.index(time_slot)]:
-                    data_idx += ts["blocks"]
-                
-                # Add blocks for this time slot
-                for block in range(time_slot["blocks"]):
-                    # Check if there's a class scheduled
-                    if data_idx < len(day_data) and day_data[data_idx] is not None:
-                        class_data = day_data[data_idx]
-                        
-                        # Get colors for the subject
-                        colors = subject_colors.get(class_data["subject"], {"bg": "#e0e0e0", "text": "#000000"})
-                        
-                        # Create the class cell
-                        class_frame = ctk.CTkFrame(
-                            self.schedule_container, 
-                            fg_color=colors["bg"],
-                            corner_radius=0
-                        )
-                        class_frame.grid(
-                            row=current_row + block, 
-                            column=day_idx + 1, 
-                            sticky="nsew",
-                            padx=1, pady=1
-                        )
-                        
-                        # Add subject label
-                        subject_label = ctk.CTkLabel(
-                            class_frame,
-                            text=class_data["subject"],
-                            font=ctk.CTkFont(size=12, weight="bold"),
-                            text_color=colors["text"]
-                        )
-                        subject_label.pack(anchor="w", padx=5, pady=(5, 0))
-                        
-                        # Add room label
-                        room_label = ctk.CTkLabel(
-                            class_frame,
-                            text=f"({class_data['room']})",
-                            font=ctk.CTkFont(size=11),
-                            text_color=colors["text"]
-                        )
-                        room_label.pack(anchor="w", padx=5, pady=(0, 0))
-                        
-                        # Add time label
-                        time_label = ctk.CTkLabel(
-                            class_frame,
-                            text=f"({class_data['time']})",
-                            font=ctk.CTkFont(size=10),
-                            text_color=colors["text"]
-                        )
-                        time_label.pack(anchor="e", padx=5, pady=(0, 5))
-                        
-                        # Make the class cell clickable
-                        class_frame.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
-                        subject_label.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
-                        room_label.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
-                        time_label.bind("<Button-1>", lambda e, cd=class_data: self.show_class_details(cd))
-                    else:
-                        # Create empty cell
-                        empty_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
-                        empty_frame.grid(
-                            row=current_row + block, 
-                            column=day_idx + 1, 
-                            sticky="nsew",
-                            padx=1, pady=1
-                        )
-                        
-                        # Make empty cell clickable to add a class
-                        empty_frame.bind("<Button-1>", lambda e, r=current_row+block, c=day_idx+1, d=day: 
-                                       self.add_new_class(r, c, d))
+                # Create a cell for this day and time
+                if time_slot["time"] in self.schedule_data.get(day, {}) and self.schedule_data[day][time_slot["time"]] is not None:
+                    class_data = self.schedule_data[day][time_slot["time"]]
                     
-                    data_idx += 1
+                    # Get colors for the subject
+                    colors = subject_colors.get(class_data["subject"], {"bg": "#e0e0e0", "text": "#000000"})
+                    
+                    # Create class cell
+                    class_frame = ctk.CTkFrame(
+                        self.schedule_container, 
+                        fg_color=colors["bg"],
+                        corner_radius=0
+                    )
+                    class_frame.grid(
+                        row=i+1, 
+                        column=day_idx+1, 
+                        sticky="nsew",
+                        padx=1, pady=1
+                    )
+                    
+                    # Add subject label
+                    subject_label = ctk.CTkLabel(
+                        class_frame,
+                        text=class_data["subject"],
+                        font=ctk.CTkFont(size=12, weight="bold"),
+                        text_color=colors["text"]
+                    )
+                    subject_label.pack(anchor="center", padx=5, pady=(5, 0))
+                    
+                    # Add teacher label
+                    teacher_label = ctk.CTkLabel(
+                        class_frame,
+                        text=class_data["teacher"],
+                        font=ctk.CTkFont(size=10),
+                        text_color=colors["text"]
+                    )
+                    teacher_label.pack(anchor="center", padx=5, pady=(0, 5))
+                    
+                    # Make the class cell clickable
+                    class_frame.bind("<Button-1>", lambda e, d=day, t=time_slot["time"]: 
+                                    self.show_class_details(d, t))
+                    subject_label.bind("<Button-1>", lambda e, d=day, t=time_slot["time"]: 
+                                      self.show_class_details(d, t))
+                    teacher_label.bind("<Button-1>", lambda e, d=day, t=time_slot["time"]: 
+                                      self.show_class_details(d, t))
+                else:
+                    # Create empty cell
+                    empty_frame = ctk.CTkFrame(self.schedule_container, fg_color="transparent")
+                    empty_frame.grid(
+                        row=i+1, 
+                        column=day_idx+1, 
+                        sticky="nsew",
+                        padx=1, pady=1
+                    )
+                    
+                    # Make empty cell clickable to add a class
+                    if time_slot["type"] != "empty":  # Don't allow adding classes to the empty row
+                        empty_frame.bind("<Button-1>", lambda e, d=day, t=time_slot["time"]: 
+                                        self.add_new_class(d, t))
+        
+        # Configure row and column weights to make cells expand properly
+        for i in range(len(time_slots) + 1):
+            self.schedule_container.grid_rowconfigure(i, weight=1)
             
-            current_row += time_slot["blocks"]
-            
-        # Configure column weights
         for i in range(len(days) + 1):
             self.schedule_container.grid_columnconfigure(i, weight=1)
-            
-    def show_class_details(self, class_data):
+    
+    def show_class_details(self, day, time_slot):
         """Shows a detailed card view for the selected class"""
+        # Get class data
+        class_data = self.schedule_data[day][time_slot]
+        
         # Create popup window for class details
         self.class_popup = ctk.CTkToplevel(self)
         self.class_popup.title(f"{class_data['subject']} Details")
-        self.class_popup.geometry("400x450")
+        self.class_popup.geometry("400x520")
         self.class_popup.resizable(False, False)
         self.class_popup.grab_set()  # Make window modal
         
+        # Subject colors for selection
+        subject_colors = {
+            "Purple": "#b388ff",
+            "Blue": "#7fdbff",
+            "Red": "#ff6b6b",
+            "Orange": "#ffb74d",
+            "Green": "#aed581",
+            "Teal": "#4db6ac",
+            "Pink": "#f48fb1",
+            "Blue Gray": "#90a4ae",
+            "Amber": "#ffe082",
+            "Gray": "#e0e0e0"
+        }
+        
         # Add subject header
-        subject_frame = ctk.CTkFrame(self.class_popup, fg_color="#3b82f6", corner_radius=0)
+        self.current_color = next((color for color_name, color in subject_colors.items() 
+                               if color == self.get_subject_color(class_data["subject"])), "#3b82f6")
+        
+        subject_frame = ctk.CTkFrame(self.class_popup, fg_color=self.current_color, corner_radius=0)
         subject_frame.pack(fill="x", padx=0, pady=0)
         
+        # Add day and time information
+        day_time_label = ctk.CTkLabel(
+            subject_frame,
+            text=f"{day}, {time_slot}",
+            font=ctk.CTkFont(size=12),
+            text_color="#000000" if self.is_light_color(self.current_color) else "#ffffff"
+        )
+        day_time_label.pack(pady=(10, 0))
+        
+        # Subject label
         subject_label = ctk.CTkLabel(
             subject_frame,
             text=class_data["subject"],
             font=ctk.CTkFont(size=24, weight="bold"),
-            text_color="#ffffff"
+            text_color="#000000" if self.is_light_color(self.current_color) else "#ffffff"
         )
-        subject_label.pack(pady=20)
+        subject_label.pack(pady=(0, 20))
         
         # Details container
         details_frame = ctk.CTkFrame(self.class_popup)
@@ -3848,41 +3903,23 @@ class TurboLearnGUI(ctk.CTk):
         info_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
         info_frame.pack(fill="x", padx=10, pady=10)
         
-        # Room
-        room_label = ctk.CTkLabel(
+        # Subject
+        subject_label = ctk.CTkLabel(
             info_frame,
-            text="Room:",
+            text="Subject:",
             font=ctk.CTkFont(size=14, weight="bold"),
             width=100,
             anchor="e"
         )
-        room_label.grid(row=0, column=0, padx=5, pady=10, sticky="e")
+        subject_label.grid(row=0, column=0, padx=5, pady=10, sticky="e")
         
-        self.room_var = tk.StringVar(value=class_data["room"])
-        room_entry = ctk.CTkEntry(
+        self.subject_var = tk.StringVar(value=class_data["subject"])
+        subject_entry = ctk.CTkEntry(
             info_frame,
-            textvariable=self.room_var,
+            textvariable=self.subject_var,
             width=200
         )
-        room_entry.grid(row=0, column=1, padx=5, pady=10, sticky="w")
-        
-        # Time
-        time_label = ctk.CTkLabel(
-            info_frame,
-            text="Time:",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            width=100,
-            anchor="e"
-        )
-        time_label.grid(row=1, column=0, padx=5, pady=10, sticky="e")
-        
-        self.time_var = tk.StringVar(value=class_data["time"])
-        time_entry = ctk.CTkEntry(
-            info_frame,
-            textvariable=self.time_var,
-            width=200
-        )
-        time_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+        subject_entry.grid(row=0, column=1, padx=5, pady=10, sticky="w")
         
         # Teacher
         teacher_label = ctk.CTkLabel(
@@ -3892,7 +3929,7 @@ class TurboLearnGUI(ctk.CTk):
             width=100,
             anchor="e"
         )
-        teacher_label.grid(row=2, column=0, padx=5, pady=10, sticky="e")
+        teacher_label.grid(row=1, column=0, padx=5, pady=10, sticky="e")
         
         self.teacher_var = tk.StringVar(value=class_data["teacher"])
         teacher_entry = ctk.CTkEntry(
@@ -3900,7 +3937,48 @@ class TurboLearnGUI(ctk.CTk):
             textvariable=self.teacher_var,
             width=200
         )
-        teacher_entry.grid(row=2, column=1, padx=5, pady=10, sticky="w")
+        teacher_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+        
+        # Color selection
+        color_label = ctk.CTkLabel(
+            info_frame,
+            text="Color:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        color_label.grid(row=2, column=0, padx=5, pady=10, sticky="e")
+        
+        # Color option menu
+        self.color_var = tk.StringVar(value=next((name for name, color in subject_colors.items() 
+                                             if color == self.get_subject_color(class_data["subject"])), "Blue"))
+        
+        color_dropdown = ctk.CTkOptionMenu(
+            info_frame,
+            values=list(subject_colors.keys()),
+            variable=self.color_var,
+            width=200,
+            command=lambda x: self.update_card_color(subject_colors[x])
+        )
+        color_dropdown.grid(row=2, column=1, padx=5, pady=10, sticky="w")
+        
+        # Room number
+        room_label = ctk.CTkLabel(
+            info_frame,
+            text="Room:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        room_label.grid(row=3, column=0, padx=5, pady=10, sticky="e")
+        
+        self.room_var = tk.StringVar(value=class_data.get("room", ""))
+        room_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.room_var,
+            width=200
+        )
+        room_entry.grid(row=3, column=1, padx=5, pady=10, sticky="w")
         
         # Notes
         notes_label = ctk.CTkLabel(
@@ -3911,17 +3989,16 @@ class TurboLearnGUI(ctk.CTk):
         )
         notes_label.pack(anchor="w", padx=10, pady=(20, 5))
         
-        self.notes_var = tk.StringVar(value=class_data.get("notes", ""))
-        notes_text = ctk.CTkTextbox(
+        self.notes_text = ctk.CTkTextbox(
             details_frame,
             height=100,
             width=350
         )
-        notes_text.pack(fill="x", padx=10, pady=5)
+        self.notes_text.pack(fill="x", padx=10, pady=5)
         
         # Add initial text if there are notes
         if "notes" in class_data:
-            notes_text.insert("1.0", class_data["notes"])
+            self.notes_text.insert("1.0", class_data["notes"])
         
         # Buttons
         buttons_frame = ctk.CTkFrame(self.class_popup, fg_color="transparent")
@@ -3931,11 +4008,13 @@ class TurboLearnGUI(ctk.CTk):
             buttons_frame,
             text="Save Changes",
             command=lambda: self.save_class_changes(
-                class_data,
-                self.room_var.get(),
-                self.time_var.get(),
+                day,
+                time_slot,
+                self.subject_var.get(),
                 self.teacher_var.get(),
-                notes_text.get("1.0", "end-1c")
+                self.room_var.get(),
+                self.notes_text.get("1.0", "end-1c"),
+                self.color_var.get()
             )
         )
         save_button.pack(side="left", padx=10)
@@ -3945,17 +4024,83 @@ class TurboLearnGUI(ctk.CTk):
             text="Delete Class",
             fg_color="#ef4444",
             hover_color="#dc2626",
-            command=lambda: self.delete_class(class_data)
+            command=lambda: self.delete_class(day, time_slot)
         )
         delete_button.pack(side="right", padx=10)
+    
+    def update_card_color(self, color_hex):
+        """Updates the color of the subject card in real-time"""
+        if hasattr(self, 'class_popup') and hasattr(self, 'current_color'):
+            # Find the subject frame which is the first child of the popup
+            subject_frame = self.class_popup.winfo_children()[0]
+            if isinstance(subject_frame, ctk.CTkFrame):
+                subject_frame.configure(fg_color=color_hex)
+                self.current_color = color_hex
+                
+                # Update text color based on background color
+                text_color = "#000000" if self.is_light_color(color_hex) else "#ffffff"
+                
+                # Update the text color of all labels in the subject frame
+                for widget in subject_frame.winfo_children():
+                    if isinstance(widget, ctk.CTkLabel):
+                        widget.configure(text_color=text_color)
+    
+    def is_light_color(self, hex_color):
+        """Determines if a color is light or dark based on hex value"""
+        # Convert hex to RGB
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4)) if len(hex_color) == 6 else (128, 128, 128)
         
-    def save_class_changes(self, class_data, room, time, teacher, notes):
+        # Calculate luminance - ITU-R BT.709 formula
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        
+        # Return True if color is light
+        return luminance > 0.5
+    
+    def get_subject_color(self, subject):
+        """Gets the color associated with a subject"""
+        subject_colors = {
+            "Mathematics": "#b388ff",     # Purple
+            "Physics": "#7fdbff",        # Light blue
+            "Computer Science": "#ff6b6b", # Red
+            "English": "#ffb74d",        # Orange
+            "Chemistry": "#aed581",      # Green
+            "Biology": "#4db6ac",        # Teal
+            "History": "#f48fb1",        # Pink
+            "Geography": "#90a4ae",      # Blue Gray
+            "Art": "#ffe082",           # Amber
+            "Physical Education": "#e0e0e0", # Gray
+        }
+        
+        return subject_colors.get(subject, "#e0e0e0")
+    
+    def save_class_changes(self, day, time_slot, subject, teacher, room, notes, color_name):
         """Saves changes made to a class"""
+        # Get color hex value
+        subject_colors = {
+            "Purple": "#b388ff",
+            "Blue": "#7fdbff",
+            "Red": "#ff6b6b",
+            "Orange": "#ffb74d",
+            "Green": "#aed581",
+            "Teal": "#4db6ac",
+            "Pink": "#f48fb1",
+            "Blue Gray": "#90a4ae",
+            "Amber": "#ffe082",
+            "Gray": "#e0e0e0"
+        }
+        
+        # Update the global subject color mapping if the subject name has changed
+        old_subject = self.schedule_data[day][time_slot]["subject"]
+        
         # Update class data
-        class_data["room"] = room
-        class_data["time"] = time
-        class_data["teacher"] = teacher
-        class_data["notes"] = notes
+        self.schedule_data[day][time_slot] = {
+            "subject": subject,
+            "teacher": teacher,
+            "room": room,
+            "notes": notes,
+            "color": subject_colors.get(color_name, "#e0e0e0")
+        }
         
         # Close popup
         self.class_popup.destroy()
@@ -3964,16 +4109,15 @@ class TurboLearnGUI(ctk.CTk):
         self.create_schedule_grid()
         
         # Show message
-        self.show_message("Success", f"Changes to {class_data['subject']} saved successfully")
-        
-    def delete_class(self, class_data):
+        self.show_message("Success", f"Changes to {subject} saved successfully")
+    
+    def delete_class(self, day, time_slot):
         """Deletes a class from the schedule"""
-        # Find and remove the class from schedule_data
-        for day, classes in self.schedule_data.items():
-            for i, cls in enumerate(classes):
-                if cls is not None and cls == class_data:
-                    self.schedule_data[day][i] = None
-                    break
+        # Get the subject name before deleting
+        subject = self.schedule_data[day][time_slot]["subject"]
+        
+        # Remove the class from schedule_data
+        self.schedule_data[day][time_slot] = None
         
         # Close popup
         self.class_popup.destroy()
@@ -3982,20 +4126,43 @@ class TurboLearnGUI(ctk.CTk):
         self.create_schedule_grid()
         
         # Show message
-        self.show_message("Success", f"{class_data['subject']} removed from schedule")
-        
-    def add_new_class(self, row, col, day):
+        self.show_message("Success", f"{subject} removed from schedule")
+    
+    def add_new_class(self, day, time_slot):
         """Opens a dialog to add a new class to the schedule"""
         # Create popup window for adding a new class
         self.add_class_popup = ctk.CTkToplevel(self)
         self.add_class_popup.title("Add New Class")
-        self.add_class_popup.geometry("400x450")
+        self.add_class_popup.geometry("400x520")
         self.add_class_popup.resizable(False, False)
         self.add_class_popup.grab_set()  # Make window modal
+        
+        # Subject colors for selection
+        subject_colors = {
+            "Purple": "#b388ff",
+            "Blue": "#7fdbff",
+            "Red": "#ff6b6b",
+            "Orange": "#ffb74d",
+            "Green": "#aed581",
+            "Teal": "#4db6ac",
+            "Pink": "#f48fb1",
+            "Blue Gray": "#90a4ae",
+            "Amber": "#ffe082",
+            "Gray": "#e0e0e0"
+        }
         
         # Add header
         header_frame = ctk.CTkFrame(self.add_class_popup, fg_color="#3b82f6", corner_radius=0)
         header_frame.pack(fill="x", padx=0, pady=0)
+        
+        # Add day and time information
+        day_time_label = ctk.CTkLabel(
+            header_frame,
+            text=f"{day}, {time_slot}",
+            font=ctk.CTkFont(size=12),
+            text_color="#ffffff"
+        )
+        day_time_label.pack(pady=(10, 0))
         
         header_label = ctk.CTkLabel(
             header_frame,
@@ -4003,7 +4170,7 @@ class TurboLearnGUI(ctk.CTk):
             font=ctk.CTkFont(size=24, weight="bold"),
             text_color="#ffffff"
         )
-        header_label.pack(pady=20)
+        header_label.pack(pady=(0, 20))
         
         # Details container
         details_frame = ctk.CTkFrame(self.add_class_popup)
@@ -4023,7 +4190,9 @@ class TurboLearnGUI(ctk.CTk):
         )
         subject_label.grid(row=0, column=0, padx=5, pady=10, sticky="e")
         
-        subjects = ["Social-A", "History", "English", "Civic", "Computer-S", "Math", "Emerging-T"]
+        subjects = ["Mathematics", "Physics", "Computer Science", "English", 
+                   "Chemistry", "Biology", "History", "Geography", "Art", "Physical Education"]
+        
         self.subject_var = tk.StringVar(value=subjects[0])
         subject_dropdown = ctk.CTkOptionMenu(
             info_frame,
@@ -4033,42 +4202,6 @@ class TurboLearnGUI(ctk.CTk):
         )
         subject_dropdown.grid(row=0, column=1, padx=5, pady=10, sticky="w")
         
-        # Room
-        room_label = ctk.CTkLabel(
-            info_frame,
-            text="Room:",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            width=100,
-            anchor="e"
-        )
-        room_label.grid(row=1, column=0, padx=5, pady=10, sticky="e")
-        
-        self.room_var = tk.StringVar()
-        room_entry = ctk.CTkEntry(
-            info_frame,
-            textvariable=self.room_var,
-            width=200
-        )
-        room_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
-        
-        # Time
-        time_label = ctk.CTkLabel(
-            info_frame,
-            text="Time:",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            width=100,
-            anchor="e"
-        )
-        time_label.grid(row=2, column=0, padx=5, pady=10, sticky="e")
-        
-        self.time_var = tk.StringVar()
-        time_entry = ctk.CTkEntry(
-            info_frame,
-            textvariable=self.time_var,
-            width=200
-        )
-        time_entry.grid(row=2, column=1, padx=5, pady=10, sticky="w")
-        
         # Teacher
         teacher_label = ctk.CTkLabel(
             info_frame,
@@ -4077,7 +4210,7 @@ class TurboLearnGUI(ctk.CTk):
             width=100,
             anchor="e"
         )
-        teacher_label.grid(row=3, column=0, padx=5, pady=10, sticky="e")
+        teacher_label.grid(row=1, column=0, padx=5, pady=10, sticky="e")
         
         self.teacher_var = tk.StringVar()
         teacher_entry = ctk.CTkEntry(
@@ -4085,7 +4218,44 @@ class TurboLearnGUI(ctk.CTk):
             textvariable=self.teacher_var,
             width=200
         )
-        teacher_entry.grid(row=3, column=1, padx=5, pady=10, sticky="w")
+        teacher_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+        
+        # Color selection
+        color_label = ctk.CTkLabel(
+            info_frame,
+            text="Color:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        color_label.grid(row=2, column=0, padx=5, pady=10, sticky="e")
+        
+        self.color_var = tk.StringVar(value="Blue")
+        color_dropdown = ctk.CTkOptionMenu(
+            info_frame,
+            values=list(subject_colors.keys()),
+            variable=self.color_var,
+            width=200
+        )
+        color_dropdown.grid(row=2, column=1, padx=5, pady=10, sticky="w")
+        
+        # Room number
+        room_label = ctk.CTkLabel(
+            info_frame,
+            text="Room:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=100,
+            anchor="e"
+        )
+        room_label.grid(row=3, column=0, padx=5, pady=10, sticky="e")
+        
+        self.room_var = tk.StringVar()
+        room_entry = ctk.CTkEntry(
+            info_frame,
+            textvariable=self.room_var,
+            width=200
+        )
+        room_entry.grid(row=3, column=1, padx=5, pady=10, sticky="w")
         
         # Notes
         notes_label = ctk.CTkLabel(
@@ -4112,13 +4282,12 @@ class TurboLearnGUI(ctk.CTk):
             text="Add Class",
             command=lambda: self.save_new_class(
                 day,
-                row,
-                col,
+                time_slot,
                 self.subject_var.get(),
-                self.room_var.get(),
-                self.time_var.get(),
                 self.teacher_var.get(),
-                notes_text.get("1.0", "end-1c")
+                self.room_var.get(),
+                notes_text.get("1.0", "end-1c"),
+                self.color_var.get()
             )
         )
         add_button.pack(side="left", padx=10)
@@ -4131,46 +4300,37 @@ class TurboLearnGUI(ctk.CTk):
             command=lambda: self.add_class_popup.destroy()
         )
         cancel_button.pack(side="right", padx=10)
-        
-    def save_new_class(self, day, row, col, subject, room, time, teacher, notes):
+    
+    def save_new_class(self, day, time_slot, subject, teacher, room, notes, color_name):
         """Saves a new class to the schedule"""
+        # Get color hex value
+        subject_colors = {
+            "Purple": "#b388ff",
+            "Blue": "#7fdbff",
+            "Red": "#ff6b6b",
+            "Orange": "#ffb74d",
+            "Green": "#aed581",
+            "Teal": "#4db6ac",
+            "Pink": "#f48fb1",
+            "Blue Gray": "#90a4ae",
+            "Amber": "#ffe082",
+            "Gray": "#e0e0e0"
+        }
+        
         # Create new class data
         new_class = {
             "subject": subject,
-            "room": room,
-            "time": time,
             "teacher": teacher,
-            "notes": notes
+            "room": room,
+            "notes": notes,
+            "color": subject_colors.get(color_name, "#e0e0e0")
         }
         
-        # Calculate the index in the day's data
-        idx = 0
-        current_row = 1
-        for time_slot in [
-            {"start": "Morning", "blocks": 3},
-            {"start": "Afternoon", "blocks": 2},
-            {"start": "Lunch", "blocks": 1},
-            {"start": "Evening", "blocks": 3},
-            {"start": "Late", "blocks": 1}
-        ]:
-            if time_slot["start"] == "Lunch":
-                current_row += 1
-                continue
-                
-            for i in range(time_slot["blocks"]):
-                if current_row == row:
-                    idx += i
-                    break
-                
-            if current_row == row:
-                break
-                
-            current_row += time_slot["blocks"]
-            idx += time_slot["blocks"]
-        
         # Add the class to the schedule data
-        if idx < len(self.schedule_data[day]):
-            self.schedule_data[day][idx] = new_class
+        if day not in self.schedule_data:
+            self.schedule_data[day] = {}
+        
+        self.schedule_data[day][time_slot] = new_class
         
         # Close popup
         self.add_class_popup.destroy()
@@ -4182,10 +4342,8 @@ class TurboLearnGUI(ctk.CTk):
         self.show_message("Success", f"{subject} added to schedule")
         
     def edit_schedule(self):
-        """Opens a new window to edit the entire schedule"""
-        # Here you could implement a more comprehensive schedule editor
-        # For now, we'll just show a message
-        self.show_message("Info", "Click on any class or empty cell to edit or add classes")
+        """Information about editing the schedule"""
+        self.show_message("Schedule Editor", "Click on any class to edit details or empty space to add a new class.")
 
 if __name__ == "__main__":
     # Check if matplotlib is installed
